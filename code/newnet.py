@@ -93,13 +93,14 @@ def model3(input_dim, nb_classes=2):
     model.add(MaxPooling2D(pool_size=(2, 2)))
 
     model.add(Conv2D(filters=nb_classes,
-               kernel_size=(1, 1))(model.output))
-    model.add(Conv2DTranspose(filters=nb_classes,
-                        kernel_size=(64, 64),
-                        strides=(32, 32),
-                        padding='same',
-                        activation='sigmoid',
-                        kernel_initializer=initializers.Constant(bilinear_upsample_weights(32, nb_classes))))
+               kernel_size=(1, 1), padding='same'))
+    # model.add(Conv2DTranspose(filters=nb_classes,
+    #                     kernel_size=(64, 64),
+    #                     strides=(32, 32),
+    #                     padding='same',
+    #                     activation='sigmoid',
+    #                     kernel_initializer=initializers.Constant(bilinear_upsample_weights(32, nb_classes))))
+
     return model
 
 def model4(input_dim, output_dim=17):

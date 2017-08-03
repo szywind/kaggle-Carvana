@@ -67,7 +67,7 @@ def validation_get_optimal_thr():
     for f in train_files:
         mask = np.array(Image.open(f), dtype=np.uint8)
         if div_factor != 1:
-            mask = cv2.resize(mask, (mask.shape[1] // div_factor, mask.shape[0] // div_factor), cv2.INTER_LINEAR)
+            mask = cv2.resize(mask, (mask.shape[1] // div_factor, mask.shape[0] // div_factor), interpolation=cv2.INTER_LINEAR)
         # print(mask.min(), mask.max(), mask.mean())
         train_masks.append(mask)
         avg_mask += mask.astype(np.float64)
@@ -92,7 +92,10 @@ def validation_get_optimal_thr():
     avg_mask_thr = avg_mask.copy()
     avg_mask_thr[avg_mask_thr > best_thr] = 1
     avg_mask_thr[avg_mask_thr <= best_thr] = 0
-    avg_mask_thr = cv2.resize(avg_mask_thr, (1918, 1280), cv2.INTER_LINEAR)
+
+    print('AVG Mask Thr shape: {}'.format(avg_mask_thr.shape))
+    print(type(avg_mask_thr))
+    avg_mask_thr = cv2.resize(avg_mask_thr, (1918, 1280), interpolation=cv2.INTER_LINEAR)
     avg_mask_thr[avg_mask_thr > 0.5] = 1
     avg_mask_thr[avg_mask_thr <= 0.5] = 0
     print(avg_mask.shape, avg_mask_thr.shape)

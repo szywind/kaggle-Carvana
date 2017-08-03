@@ -119,6 +119,15 @@ def get_score(train_masks, avg_masks, thr):
         d += dice(train_masks[i], pred_mask)
     return d/train_masks.shape[0]
 
+
+def get_result(imgs, thresh):
+    result = []
+    for img in imgs:
+        img[img > thresh] = 1
+        img[img <= thresh] = 0
+        result.append(cv2.resize(img, (1918, 1280), interpolation=cv2.INTER_LINEAR))
+    return result
+
 def find_best_seg_thr(masks_gt, masks_pred):
     best_score = 0
     best_thr = -1

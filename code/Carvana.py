@@ -231,9 +231,9 @@ class CarvanaCarSeg():
                     p_test = self.model.predict_generator(generator=test_generator(transformation=i),
                                                      steps=math.ceil(nTest / float(self.batch_size)))
                     if i % 2 == 0:
-                        p_full_test.append(p_test[:,:,1] - p_test[:,:,0])
+                        p_full_test.append(p_test[...,1] - p_test[...,0])
                     else:
-                        p_full_test.append(np.fliplr(p_test[:,:,1] - p_test[:,:,0]))
+                        p_full_test.append(np.fliplr(p_test[...,1] - p_test[...,0]))
 
                 avg_p_test = np.array(p_full_test[0])
                 for i in range(1, self.nTTA):
@@ -272,7 +272,7 @@ class CarvanaCarSeg():
         if not os.path.exists(OUTPUT_PATH):
             os.mkdir(OUTPUT_PATH)
         for i in range(len(result)):
-            cv2.imwrite(OUTPUT_PATH+'predicted_test_masks/{}'.format(self.test_imgs[i][self.test_imgs[i].rfind('/')+1:]), (255 * result).astype(np.uint8))
+            cv2.imwrite(OUTPUT_PATH+'predicted_test_masks/{}'.format(self.test_imgs[i][self.test_imgs[i].rfind('/')+1:]), (255 * result[i]).astype(np.uint8))
 
     def create_submission(best_score, predict_masks):
         print('Create submission...')

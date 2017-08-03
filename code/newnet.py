@@ -190,6 +190,10 @@ def model4(input_dim, nb_classes=2):
 def fcn_32s(input_dim, nb_classes=2):
     inputs = Input(shape=(input_dim,input_dim,3))
     vgg16 = VGG16(weights=None, include_top=False, input_tensor=inputs)
+    pretrain_model_path = "../weights/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5"
+    if not os.path.exists(pretrain_model_path):
+        raise RuntimeError("No pretrained model loaded.")
+    vgg16.load_weights(pretrain_model_path)
     x = Conv2D(filters=nb_classes,
                kernel_size=(1, 1))(vgg16.output)
     x = Conv2DTranspose(filters=nb_classes,

@@ -3,7 +3,7 @@ import keras as k
 
 from keras import regularizers, initializers
 from keras.models import Model, Sequential
-from keras.layers import InputLayer, Dense, Dropout, Flatten, Activation
+from keras.layers import Input, InputLayer, Dense, Dropout, Flatten, Activation
 from keras.layers import Conv2D, MaxPooling2D, BatchNormalization, GlobalAveragePooling2D, Conv2DTranspose
 from keras.applications.vgg16 import VGG16
 from keras.applications.vgg19 import VGG19
@@ -94,16 +94,16 @@ def model3(input_dim, nb_classes=2):
 
     model.add(Conv2D(filters=nb_classes,
                kernel_size=(1, 1), padding='same'))
-    # model.add(Conv2DTranspose(filters=nb_classes,
-    #                     kernel_size=(64, 64),
-    #                     strides=(32, 32),
-    #                     padding='same',
-    #                     activation='sigmoid',
-    #                     kernel_initializer=initializers.Constant(bilinear_upsample_weights(32, nb_classes))))
+    model.add(Conv2DTranspose(filters=nb_classes,
+                        kernel_size=(64, 64),
+                        strides=(32, 32),
+                        padding='same',
+                        activation='sigmoid',
+                        kernel_initializer=initializers.Constant(bilinear_upsample_weights(32, nb_classes))))
 
     return model
 
-def model4(input_dim, output_dim=17):
+def model4(input_dim, nb_classes=2):
     # preprocess
     x = InputLayer(input_shape = (input_dim,input_dim,3)).input
     y1 = x
@@ -175,13 +175,37 @@ def model4(input_dim, output_dim=17):
 
     x = Conv2D(16, (1, 1), padding='same', kernel_regularizer=regularizers.L1L2(l2=1E-4), bias_regularizer=regularizers.L1L2(l2=1E-4))(x)
 
-    x = Flatten()(x)
-    x = BatchNormalization()(x)
-    x = Activation('relu')(x)
-    x = Dropout(0.5)(x)
-    x = Dense(output_dim, activation='sigmoid')(x)
+    x = Conv2D(filters=nb_classes,
+               kernel_size=(1, 1))(x)
+    x = Conv2DTranspose(filters=nb_classes,
+                        kernel_size=(64, 64),
+                        strides=(32, 32),
+                        padding='same',
+                        activation='sigmoid',
+                        kernel_initializer=initializers.Constant(bilinear_upsample_weights(32, nb_classes)))(x)
 
     return Model(input=y1, output=x)
+
+
+def fcn_32s(input_dim, nb_classes=2):
+    inputs = Input(shape=(input_dim,input_dim,3))
+    vgg16 = VGG16(weights=None, include_top=False, input_tensor=inputs)
+    pretrain_model_path = "../weights/vgg16_weights_tf_dim_ordering_tf_kernels_notop.h5"
+    if not os.path.exists(pretrain_model_path):
+        raise RuntimeError("No pretrained model loaded.")
+    vgg16.load_weights(pretrain_model_path)
+    x = Conv2D(filters=nb_classes,
+               kernel_size=(1, 1))(vgg16.output)
+    x = Conv2DTranspose(filters=nb_classes,
+                        kernel_size=(64, 64),
+                        strides=(32, 32),
+                        padding='same',
+                        activation='sigmoid',
+                        kernel_initializer=initializers.Constant(bilinear_upsample_weights(32, nb_classes)))(x)
+    model = Model(inputs=inputs, outputs=x)
+    for layer in model.layers[:15]:
+        layer.trainable = False
+    return model
 
 def vgg16():
     base_model = VGG16(weights=None, include_top=False, input_shape = (224,224,3))

@@ -22,25 +22,28 @@ import glob
 import random
 from PIL import Image
 
+np.set_printoptions(threshold='nan')
+
 INPUT_PATH = '../input/'
-OUTPUT_PATH = './'
+OUTPUT_PATH = '../output/'
 
 class CarvanaCarSeg():
-    def __init__(self, input_dim=512, batch_size=256, nfolds=5, epochs=300, learn_rate=1e-4):
+    def __init__(self, input_dim=512, batch_size=16, nfolds=5, epochs=1, learn_rate=1e-4, nb_classes=2):
         self.input_dim = input_dim
         self.batch_size = batch_size
         self.nfolds = nfolds
         self.epochs = epochs
         self.learn_rate = learn_rate
-        self.model = newnet.model3(input_dim, 2)
+        self.nb_classes = nb_classes
+        self.model = newnet.fcn_32s(input_dim, nb_classes)
         self.nAug = 2 # incl. horizon mirror augmentation
         self.nTTA = 2 # incl. horizon mirror augmentation
         self.load_data()
 
     def load_data(self):
-        self.train_masks = np.array(glob.glob(INPUT_PATH + 'train_masks/*.gif'))
-        self.train_imgs = np.array(glob.glob(INPUT_PATH + 'train/*.jpg'))
-        self.test_imgs = np.array(glob.glob(INPUT_PATH + 'test/*.jpg'))
+        self.train_masks = np.array(glob.glob(INPUT_PATH + 'train_masks/*.gif')[:100])
+        self.train_imgs = np.array(glob.glob(INPUT_PATH + 'train/*.jpg')[:100])
+        self.test_imgs = np.array(glob.glob(INPUT_PATH + 'test/*.jpg')[:100])
         # index = list(range(len(self.imgs)))
         # random.shuffle(index)
         # self.imgs = self.imgs[index]
@@ -99,7 +102,11 @@ class CarvanaCarSeg():
                             mask = np.array(Image.open(valid_y[i]), dtype=np.uint8) # mask = cv2.imread(valid_y[i]) cannot read .gif
                             mask = cv2.resize(mask, (self.input_dim, self.input_dim))
                             # mask = transformations2(mask, j)
-                            y_batch.append(mask)
+                            target = np.zeros((mask.shape[0], mask.shape[1], self.nb_classes))
+                            for k in range(self.nb_classes):
+                                target[:,:,k] = (mask == k)
+                            y_batch.append(target)
+
                         x_batch = np.array(x_batch, np.float32)
                         y_batch = np.array(y_batch, np.float32)
                         yield x_batch, y_batch
@@ -121,7 +128,11 @@ class CarvanaCarSeg():
                             mask = np.array(Image.open(train_y[i]), dtype=np.uint8)
                             mask = cv2.resize(mask, (self.input_dim, self.input_dim))
                             mask = transformations2(mask, j)
-                            y_batch.append(mask)
+                            target = np.zeros((mask.shape[0], mask.shape[1], self.nb_classes))
+                            for k in range(self.nb_classes):
+                                target[:,:,k] = (mask == k)
+                            y_batch.append(target)
+
                         x_batch = np.array(x_batch, np.float32)
                         y_batch = np.array(y_batch, np.float32)
                         yield x_batch, y_batch
@@ -174,10 +185,10 @@ class CarvanaCarSeg():
             y_valid = []
             for mask_val_path in valid_y:
                 # j = np.random.randint(self.nAug)
-                img = cv2.imread(mask_val_path)
-                img = cv2.resize(img, (self.input_dim, self.input_dim))
+                mask = np.array(Image.open(mask_val_path), dtype=np.uint8)
+                mask = cv2.resize(mask, (self.input_dim, self.input_dim))
                 # img = transformations2(img, j)
-                y_valid.append(img)
+                y_valid.append(mask)
 
             y_valid = np.array(y_valid, np.float32)
 
@@ -188,7 +199,7 @@ class CarvanaCarSeg():
         return thres, val_score/float(self.nfolds)
 
 
-    def test(self, thres, val_score, early_fusion=True):
+    def test(self, thres, best_val_score, early_fusion=True):
         nTest = len(self.test_imgs)
         print('Testing on {} samples'.format(nTest))
 
@@ -207,7 +218,9 @@ class CarvanaCarSeg():
                     yield x_batch
 
         y_full_test = []
-        for i in xrange(self.nfolds):
+        # for i in xrange(self.nfolds):
+        for i in range(1):
+            print(i)
             kfold_weights_path = os.path.join('', 'weights_kfold_' + str(i + 1) + '.h5')
             if os.path.isfile(kfold_weights_path):
                 self.model.load_weights(kfold_weights_path)
@@ -218,26 +231,29 @@ class CarvanaCarSeg():
                     p_test = self.model.predict_generator(generator=test_generator(transformation=i),
                                                      steps=math.ceil(nTest / float(self.batch_size)))
                     if i % 2 == 0:
-                        p_full_test.append(p_test)
+                        p_full_test.append(p_test[...,1] - p_test[...,0])
                     else:
-                        p_full_test.append(np.fliplr(p_test))
+                        p_full_test.append(np.fliplr(p_test[...,1] - p_test[...,0]))
 
-                p_test = np.array(p_full_test[0])
+                avg_p_test = np.array(p_full_test[0])
                 for i in range(1, self.nTTA):
-                    p_test += np.array(p_full_test[i])
-                p_test /= self.nTTA
-                y_full_test.append(p_test)
+                    avg_p_test += np.array(p_full_test[i])
+                avg_p_test /= self.nTTA
+                y_full_test.append(avg_p_test)
 
 
-        def get_result(img, thresh):
-            img[img > thresh] = 1
-            img[img <= thresh] = 0
-            return img
+        def get_result(imgs, thresh):
+            result = []
+            for img in imgs:
+                img[img > thresh] = 1
+                img[img <= thresh] = 0
+                result.append(img)
+            return result
 
         raw_result = np.zeros(y_full_test[0].shape)
         if early_fusion:
             thresh = 0
-            for i in xrange(self.nfolds):
+            for i in range(1, self.nfolds):
                 raw_result += y_full_test[i]
                 thresh += thres[i]
 
@@ -251,12 +267,17 @@ class CarvanaCarSeg():
                 raw_result += get_result(y_full_test[i], thres[i])
             result = raw_result / float(self.nfolds)
 
+        self.create_submission(best_val_score, result)
+        # save predicted masks
+        if not os.path.exists(OUTPUT_PATH):
+            os.mkdir(OUTPUT_PATH)
+        for i in range(len(result)):
+            cv2.imwrite(OUTPUT_PATH+'predicted_test_masks/{}'.format(self.test_imgs[i][self.test_imgs[i].rfind('/')+1:]), (255 * result[i]).astype(np.uint8))
 
-
-    def create_submission(best_score, avg_mask):
+    def create_submission(best_score, predict_masks):
         print('Create submission...')
         t = pd.read_csv(INPUT_PATH + 'sample_submission.csv')
-        str = rle(avg_mask)
+        str = map(rle, predict_masks)
         t['rle_mask'] = str
         t.to_csv('subm_{}.gz'.format(best_score), index=False, compression='gzip')
 
@@ -268,6 +289,6 @@ if __name__ == "__main__":
     print("thresh:\n{}".format(thresh))
     print("val_score:", val_score)
 
-    ccs.test(thres=thresh, val_score=val_score, early_fusion=True)
+    ccs.test(thresh, val_score, early_fusion=True)
 
     # af.refine(thresh, val_score)

@@ -113,16 +113,17 @@ def dice(im1, im2, empty_score=1.0):
 def get_score(train_masks, avg_masks, thr):
     d = 0.0
     for i in range(train_masks.shape[0]):
-        avg_masks[i][avg_masks[i] > thr] = 1
-        avg_masks[i][avg_masks[i] <= thr] = 0
-        d += dice(train_masks[i], avg_masks[i])
+        pred_mask = avg_masks[i][:,:,1] - avg_masks[i][:,:,0]
+        pred_mask[pred_mask > thr] = 1
+        pred_mask[pred_mask <= thr] = 0
+        d += dice(train_masks[i], pred_mask)
     return d/train_masks.shape[0]
 
 def find_best_seg_thr(masks_gt, masks_pred):
     best_score = 0
     best_thr = -1
-    for t in range(400, 600):
-        thr = t/1000
+    for t in range(-200, 200):
+        thr = t/float(1000)
         score = get_score(masks_gt, masks_pred, thr)
         print('THR: {:.3f} SCORE: {:.6f}'.format(thr, score))
         if score > best_score:

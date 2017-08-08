@@ -32,21 +32,22 @@ OUTPUT_PATH = '../output/'
 
 
 class CarvanaCarSeg():
-    def __init__(self, input_dim=1024, batch_size=4, epochs=50, learn_rate=1e-3, nb_classes=2):
+    def __init__(self, input_dim=640, batch_size=5, epochs=20, learn_rate=1e-3, nb_classes=2):
         self.input_dim = input_dim
         self.batch_size = batch_size
         self.epochs = epochs
         self.learn_rate = learn_rate
         self.nb_classes = nb_classes
         # self.model = newnet.fcn_32s(input_dim, nb_classes)
-        self.model = unet.get_unet_1024()
+        self.model = unet.get_unet_512(input_shape=(self.input_dim, self.input_dim, 3))
         self.model_path = '../weights/car-segmentation-model.h5'
         self.threshold = 0.5
         self.direct_result = True
         # self.nAug = 2 # incl. horizon mirror augmentation
         # self.nTTA = 1 # incl. horizon mirror augmentation
         self.load_data()
-        self.factor = 2
+        self.factor = 1
+        self.train_with_all = True
 
     def load_data(self):
         df_train = pd.read_csv(INPUT_PATH + 'train_masks.csv')
@@ -156,34 +157,83 @@ class CarvanaCarSeg():
         #                   optimizer=opt,
         #                   metrics=[dice_loss])
 
-        self.model.compile(optimizer=optimizers.SGD(lr=self.learn_rate, momentum=0.9),
-                           loss='binary_crossentropy',
-                           metrics=[dice_loss])
+        # self.model.compile(optimizer=optimizers.SGD(lr=self.learn_rate, momentum=0.9),
+        #                    loss='binary_crossentropy',
+        #                    metrics=[dice_loss])
 
-        # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
-        callbacks = [EarlyStopping(monitor='val_loss',
-                                   patience=4,
-                                   verbose=1,
-                                   min_delta=1e-4),
-                     ReduceLROnPlateau(monitor='val_loss',
-                                       factor=0.1,
-                                       patience=2,
-                                       cooldown=2,
-                                       verbose=1),
-                     ModelCheckpoint(filepath=self.model_path,
-                                     save_best_only=True,
-                                     save_weights_only=True),
-                     TensorBoard(log_dir='logs')]
+        if self.train_with_all:
+            def train_all_generator():
+                while True:
+                    for start in range(0, nTrain, self.batch_size):
+                        x_batch = []
+                        y_batch = []
+                        end = min(start + self.batch_size, nTrain)
+                        ids_train_batch = self.ids_train_split[start:end]
+
+                        for id in ids_train_batch.values:
+                            # j = np.random.randint(self.nAug)
+                            img = cv2.imread(INPUT_PATH + 'train/{}.jpg'.format(id))
+                            img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                            # img = transformations2(img, j)
+                            mask = np.array(Image.open(INPUT_PATH + 'train_masks/{}_mask.gif'.format(id)),
+                                            dtype=np.uint8)
+                            mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                            # mask = transformations2(mask, j)
+                            img, mask = randomShiftScaleRotate(img, mask,
+                                                               shift_limit=(-0.0625, 0.0625),
+                                                               scale_limit=(-0.1, 0.1),
+                                                               rotate_limit=(-0, 0))
+                            img, mask = randomHorizontalFlip(img, mask)
+                            if self.factor != 1:
+                                img = cv2.resize(img, (self.input_dim / self.factor, self.input_dim / self.factor),
+                                                 interpolation=cv2.INTER_LINEAR)
+                            # draw(img, mask)
+
+                            if self.direct_result:
+                                mask = np.expand_dims(mask, axis=2)
+                                x_batch.append(img)
+                                y_batch.append(mask)
+                            else:
+                                target = np.zeros((mask.shape[0], mask.shape[1], self.nb_classes))
+                                for k in range(self.nb_classes):
+                                    target[:, :, k] = (mask == k)
+                                x_batch.append(img)
+                                y_batch.append(target)
+
+                        x_batch = np.array(x_batch, np.float32) / 255.0
+                        y_batch = np.array(y_batch, np.float32)
+                        yield x_batch, y_batch
+            # callbacks = [ModelCheckpoint(self.model_path, save_best_only=False, verbose=0)]
+            self.model.fit_generator(
+                generator=train_generator(),
+                steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+                epochs=self.epochs,
+                verbose=2)
+            self.model.save_weights(self.model_path)
+        else:
+            callbacks = [EarlyStopping(monitor='val_loss',
+                                       patience=4,
+                                       verbose=1,
+                                       min_delta=1e-4),
+                         ReduceLROnPlateau(monitor='val_loss',
+                                           factor=0.1,
+                                           patience=2,
+                                           cooldown=2,
+                                           verbose=1),
+                         ModelCheckpoint(filepath=self.model_path,
+                                         save_best_only=True,
+                                         save_weights_only=True),
+                         TensorBoard(log_dir='logs')]
 
 
-        self.model.fit_generator(
-            generator=train_generator(),
-            steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
-            epochs=self.epochs,
-            verbose=2,
-            callbacks=callbacks,
-            validation_data=valid_generator(),
-            validation_steps=math.ceil(nValid / float(self.batch_size)))
+            self.model.fit_generator(
+                generator=train_generator(),
+                steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+                epochs=self.epochs,
+                verbose=2,
+                callbacks=callbacks,
+                validation_data=valid_generator(),
+                validation_steps=math.ceil(nValid / float(self.batch_size)))
 
 
         # opt  = optimizers.SGD(lr=0.1*self.learn_rate, momentum=0.9)

@@ -209,8 +209,10 @@ def get_final_mask(preds, thresh=0.5, apply_crf=False, images=None):
         pred = preds[i]
         image = images[i]
         prob = cv2.resize(pred, (ORIG_WIDTH, ORIG_HEIGHT))
-        if apply_crf and image != None:
-            mask = denseCRF(image, prob)
+        if apply_crf and image is not None:
+            prob = np.dstack((prob,) * 2)
+            prob[..., 0] = 1 - prob[..., 1]
+            mask, _ = denseCRF(image, prob)
         else:
             mask = prob > thresh
         result.append(mask)
@@ -271,7 +273,7 @@ def denseCRF(image, final_probabilities):
 
     d.addPairwiseGaussian(sxy=3, compat=3)
     d.addPairwiseBilateral(sxy=80, srgb=13, rgbim=image, compat=10)
-    Q = d.inference(20)
+    Q = d.inference(5)
 
     res = np.argmax(Q, axis=0).reshape((image.shape[0], image.shape[1]))
 

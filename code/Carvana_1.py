@@ -49,7 +49,7 @@ class CarvanaCarSeg():
         self.load_data()
         self.factor = 1
         self.train_with_all = True
-        self.apply_crf = True
+        self.apply_crf = False
 
     def load_data(self):
         df_train = pd.read_csv(INPUT_PATH + 'train_masks.csv')

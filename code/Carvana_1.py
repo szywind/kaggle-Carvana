@@ -366,6 +366,7 @@ class CarvanaCarSeg():
 
 
             str.extend(map(run_length_encode, result))
+
             # save predicted masks
             # if not os.path.exists(OUTPUT_PATH):
             #     os.mkdir(OUTPUT_PATH)

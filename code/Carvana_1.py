@@ -162,7 +162,7 @@ class CarvanaCarSeg():
 
         # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
         callbacks = [EarlyStopping(monitor='val_loss',
-                                   patience=5,
+                                   patience=4,
                                    verbose=1,
                                    min_delta=1e-4),
                      ReduceLROnPlateau(monitor='val_loss',

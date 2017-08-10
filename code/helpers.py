@@ -136,20 +136,20 @@ def randomHorizontalFlip(image, mask, u=0.5):
 
     return image, mask
 
-# def rle(img):
-#     '''
-#     img: numpy array, 1 - mask, 0 - background
-#     Returns run length as string formated
-#     '''
-#     bytes = np.where(img.flatten() == 1)[0]
-#     runs = []
-#     prev = -2
-#     for b in bytes:
-#         if (b > prev + 1): runs.extend((b + 1, 0))
-#         runs[-1] += 1
-#         prev = b
-#
-#     return ' '.join([str(i) for i in runs])
+def rle(img):
+    '''
+    img: numpy array, 1 - mask, 0 - background
+    Returns run length as string formated
+    '''
+    bytes = np.where(img.flatten() == 1)[0]
+    runs = []
+    prev = -2
+    for b in bytes:
+        if (b > prev + 1): runs.extend((b + 1, 0))
+        runs[-1] += 1
+        prev = b
+
+    return ' '.join([str(i) for i in runs])
 
 # https://www.kaggle.com/stainsby/fast-tested-rle
 def run_length_encode(mask):
@@ -271,9 +271,9 @@ def denseCRF(image, final_probabilities):
     #                      kernel=dcrf.DIAG_KERNEL,
     #                      normalization=dcrf.NORMALIZE_SYMMETRIC)
 
-    d.addPairwiseGaussian(sxy=3, compat=3)
-    d.addPairwiseBilateral(sxy=80, srgb=13, rgbim=image, compat=10)
-    Q = d.inference(5)
+    # d.addPairwiseGaussian(sxy=3, compat=1)
+    d.addPairwiseBilateral(sxy=20, srgb=10, rgbim=image, compat=1)
+    Q = d.inference(3)
 
     res = np.argmax(Q, axis=0).reshape((image.shape[0], image.shape[1]))
 

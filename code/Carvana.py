@@ -257,13 +257,13 @@ class CarvanaCarSeg():
                 raw_result += y_full_test[i]
                 thresh += thres[i]
 
-            print raw_result
+            print(raw_result)
 
             raw_result /= float(self.nfolds)
             thresh /= float(self.nfolds)
             result = get_result(raw_result, thresh)
         else:
-            for i in xrange(self.nfolds):
+            for i in range(self.nfolds):
                 raw_result += get_result(y_full_test[i], thres[i])
             result = raw_result / float(self.nfolds)
 

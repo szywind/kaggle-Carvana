@@ -49,7 +49,7 @@ class CarvanaCarSeg():
         self.load_data()
         self.factor = 1
         self.train_with_all = True
-        self.apply_crf = False
+        self.apply_crf = True
 
     def load_data(self):
         df_train = pd.read_csv(INPUT_PATH + 'train_masks.csv')
@@ -348,6 +348,8 @@ class CarvanaCarSeg():
         print('Create submission...')
         str = []
         nbatch = 0
+
+        saved_img = 0
         for start in range(0, nTest, self.batch_size):
             print(nbatch)
             nbatch += 1
@@ -376,11 +378,13 @@ class CarvanaCarSeg():
                 os.mkdir(OUTPUT_PATH)
 
             for i in range(start, end):
+                if saved_img >= 1000:
+                    break
                 if self.apply_crf:
                     cv2.imwrite(CRF_OUTPUT_PATH + '{}'.format(test_imgs[i]), (255 * result[i-start]).astype(np.uint8))
                 else:
                     cv2.imwrite(OUTPUT_PATH + '{}'.format(test_imgs[i]), (255 * result[i-start]).astype(np.uint8))
-
+                saved_img += 1
         print("Generating submission file...")
         df = pd.DataFrame({'img': test_imgs, 'rle_mask': str})
         df.to_csv('../submit/submission.csv.gz', index=False, compression='gzip')

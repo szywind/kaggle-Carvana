@@ -399,11 +399,11 @@ def get_unet_512(input_shape=(512, 512, 3),
     up0a = Activation('relu')(up0a)
     # 512
 
-    classify = Conv2D(num_classes, (1, 1), activation='sigmoid')(up0a)
+    classify = Conv2D(num_classes, (1, 1), activation='sigmoid', name='classify')(up0a)
 
-    model = Model(inputs=inputs, outputs=classify)
+    model = Model(inputs=inputs, outputs=[classify, classify])
 
-    model.compile(optimizer=SGD(lr=0.01, momentum=0.9), loss='binary_crossentropy', metrics=[dice_loss])
+    # model.compile(optimizer=SGD(lr=0.01, momentum=0.9), loss='binary_crossentropy', metrics=[dice_loss])
 
     return model
 

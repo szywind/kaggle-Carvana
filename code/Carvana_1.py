@@ -48,8 +48,8 @@ class CarvanaCarSeg():
         # self.nTTA = 1 # incl. horizon mirror augmentation
         self.load_data()
         self.factor = 1
-        self.train_with_all = True
-        self.apply_crf = True
+        self.train_with_all = False
+        self.apply_crf = False
 
     def load_data(self):
         df_train = pd.read_csv(INPUT_PATH + 'train_masks.csv')
@@ -122,7 +122,7 @@ class CarvanaCarSeg():
 
                     x_batch = np.array(x_batch, np.float32) / 255.0
                     y_batch = np.array(y_batch, np.float32)
-                    yield x_batch, y_batch
+                    yield x_batch, [y_batch, y_batch]
 
         def valid_generator():
             while True:
@@ -151,7 +151,7 @@ class CarvanaCarSeg():
 
                     x_batch = np.array(x_batch, np.float32) / 255.0
                     y_batch = np.array(y_batch, np.float32)
-                    yield x_batch, y_batch
+                    yield x_batch, [y_batch, y_batch]
 
 
         # opt  = optimizers.SGD(lr=self.learn_rate, momentum=0.9)
@@ -159,7 +159,7 @@ class CarvanaCarSeg():
         #                   optimizer=opt,
         #                   metrics=[dice_loss])
         self.model.compile(optimizer=optimizers.SGD(lr=self.learn_rate, momentum=0.9),
-                           loss='binary_crossentropy',
+                           loss={'classify': 'binary_crossentropy', 'classify': dice_loss},
                            metrics=[dice_loss])
 
         # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
@@ -189,9 +189,9 @@ class CarvanaCarSeg():
 
 
         opt  = optimizers.SGD(lr=0.1*self.learn_rate, momentum=0.9)
-        self.model.compile(loss='binary_crossentropy', # We NEED binary here, since categorical_crossentropy l1 norms the output before calculating loss.
-                          optimizer=opt,
-                          metrics=[dice_loss])
+        self.model.compile(optimizer=opt,
+                           loss={'classify': 'binary_crossentropy', 'classify': dice_loss}, # We NEED binary here, since categorical_crossentropy l1 norms the output before calculating loss.
+                           metrics=[dice_loss])
 
 
         self.model.fit_generator(
@@ -392,8 +392,8 @@ class CarvanaCarSeg():
 
 if __name__ == "__main__":
     ccs = CarvanaCarSeg()
-    # if ccs.train_with_all:
-    #     ccs.train_all()
-    # else:
-    #     ccs.train()
+    if ccs.train_with_all:
+        ccs.train_all()
+    else:
+        ccs.train()
     ccs.test_one()

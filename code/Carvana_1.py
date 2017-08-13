@@ -17,6 +17,7 @@ from sklearn.model_selection import KFold
 
 from helpers import *
 import newnet
+import pspnet
 import math
 import glob
 import random
@@ -33,7 +34,7 @@ CRF_OUTPUT_PATH = '../crf_output/'
 
 
 class CarvanaCarSeg():
-    def __init__(self, input_dim=1280, batch_size=1, epochs=100, learn_rate=1e-3, nb_classes=2):
+    def __init__(self, input_dim=1024, batch_size=2, epochs=100, learn_rate=1e-3, nb_classes=2):
         self.input_dim = input_dim
         self.batch_size = batch_size
         self.epochs = epochs

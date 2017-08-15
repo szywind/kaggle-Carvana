@@ -412,9 +412,18 @@ def get_unet_512(input_shape=(512, 512, 3),
 def get_unet_1024(input_shape=(512, 512, 3),
                  num_classes=1):
     inputs = Input(shape=input_shape)
+    # 1024
+
+    down0b = Conv2D(16, (3, 3), padding='same')(inputs)
+    down0b = BatchNormalization()(down0b)
+    down0b = Activation('relu')(down0b)
+    down0b = Conv2D(16, (3, 3), padding='same')(down0b)
+    down0b = BatchNormalization()(down0b)
+    down0b = Activation('relu')(down0b)
+    down0b_pool = MaxPooling2D((2, 2), strides=(2, 2))(down0b)
     # 512
 
-    down0a = Conv2D(16, (3, 3), padding='same')(inputs)
+    down0a = Conv2D(16, (3, 3), padding='same')(down0b_pool)
     down0a = BatchNormalization()(down0a)
     down0a = Activation('relu')(down0a)
     down0a = Conv2D(16, (3, 3), padding='same')(down0a)
@@ -554,7 +563,7 @@ def get_unet_1024(input_shape=(512, 512, 3),
     up0a = Activation('relu')(up0a)
     # 512
 
-    up0b = concatenate([inputs, up0a], axis=3)
+    up0b = concatenate([down0b, up0a], axis=3)
     up0b = UpSampling2D((2, 2))(up0b)
     up0b = Conv2D(16, (3, 3), padding='same')(up0b)
     up0b = BatchNormalization()(up0b)
@@ -566,6 +575,18 @@ def get_unet_1024(input_shape=(512, 512, 3),
     up0b = BatchNormalization()(up0b)
     up0b = Activation('relu')(up0b)
     # 1024
+
+    up0b = concatenate([inputs, up0b], axis=3)
+    up0b = UpSampling2D((2, 2))(up0b)
+    up0b = Conv2D(16, (3, 3), padding='same')(up0b)
+    up0b = BatchNormalization()(up0b)
+    up0b = Activation('relu')(up0b)
+    up0b = Conv2D(16, (3, 3), padding='same')(up0b)
+    up0b = BatchNormalization()(up0b)
+    up0b = Activation('relu')(up0b)
+    up0b = Conv2D(16, (3, 3), padding='same')(up0b)
+    up0b = BatchNormalization()(up0b)
+    up0b = Activation('relu')(up0b)
 
     classify = Conv2D(num_classes, (1, 1), activation='sigmoid')(up0b)
 

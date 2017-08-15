@@ -34,14 +34,14 @@ CRF_OUTPUT_PATH = '../crf_output/'
 
 
 class CarvanaCarSeg():
-    def __init__(self, input_dim=1024, batch_size=2, epochs=100, learn_rate=1e-3, nb_classes=2):
+    def __init__(self, input_dim=1024, batch_size=4, epochs=100, learn_rate=1e-2, nb_classes=2):
         self.input_dim = input_dim
         self.batch_size = batch_size
         self.epochs = epochs
         self.learn_rate = learn_rate
         self.nb_classes = nb_classes
         # self.model = newnet.fcn_32s(input_dim, nb_classes)
-        self.model = unet.get_unet_512(input_shape=(self.input_dim, self.input_dim, 3))
+        self.model = unet.get_unet_1024(input_shape=(self.input_dim, self.input_dim, 3))
         self.model_path = '../weights/car-segmentation-model.h5'
         self.threshold = 0.5
         self.direct_result = True
@@ -123,7 +123,7 @@ class CarvanaCarSeg():
 
                     x_batch = np.array(x_batch, np.float32) / 255.0
                     y_batch = np.array(y_batch, np.float32)
-                    yield x_batch, [y_batch, y_batch]
+                    yield x_batch, y_batch
 
         def valid_generator():
             while True:
@@ -152,18 +152,18 @@ class CarvanaCarSeg():
 
                     x_batch = np.array(x_batch, np.float32) / 255.0
                     y_batch = np.array(y_batch, np.float32)
-                    yield x_batch, [y_batch, y_batch]
+                    yield x_batch, y_batch
 
 
         # opt  = optimizers.SGD(lr=self.learn_rate, momentum=0.9)
         # self.model.compile(loss='binary_crossentropy', # We NEED binary here, since categorical_crossentropy l1 norms the output before calculating loss.
         #                   optimizer=opt,
         #                   metrics=[dice_loss])
-        self.model.compile(optimizer=optimizers.SGD(lr=self.learn_rate, momentum=0.9),
-                           loss={'classify': 'binary_crossentropy', 'classify': dice_loss},
-                           metrics=[dice_loss])
 
-        # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
+        # self.model.compile(optimizer=optimizers.SGD(lr=self.learn_rate, momentum=0.9),
+        #                    loss={'classify': 'binary_crossentropy', 'classify': dice_loss},
+        #                    metrics=[dice_loss])
+        self.model.compile(optimizer=optimizers.SGD(lr=0.01, momentum=0.9), loss=bce_dice_loss, metrics=[dice_loss])
         callbacks = [EarlyStopping(monitor='val_loss',
                                    patience=4,
                                    verbose=1,
@@ -182,27 +182,27 @@ class CarvanaCarSeg():
         self.model.fit_generator(
             generator=train_generator(),
             steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
-            epochs=10,
+            epochs=self.epochs,
             verbose=2,
             callbacks=callbacks,
             validation_data=valid_generator(),
             validation_steps=math.ceil(nValid / float(self.batch_size)))
 
 
-        opt  = optimizers.SGD(lr=0.1*self.learn_rate, momentum=0.9)
-        self.model.compile(optimizer=opt,
-                           loss={'classify': 'binary_crossentropy', 'classify': dice_loss}, # We NEED binary here, since categorical_crossentropy l1 norms the output before calculating loss.
-                           metrics=[dice_loss])
-
-
-        self.model.fit_generator(
-            generator=train_generator(),
-            steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
-            epochs=self.epochs - 10,
-            verbose=2,
-            callbacks=callbacks,
-            validation_data=valid_generator(),
-            validation_steps=math.ceil(nValid / float(self.batch_size)))
+        # opt  = optimizers.SGD(lr=0.1*self.learn_rate, momentum=0.9)
+        # self.model.compile(optimizer=opt,
+        #                    loss={'classify': 'binary_crossentropy', 'classify': dice_loss}, # We NEED binary here, since categorical_crossentropy l1 norms the output before calculating loss.
+        #                    metrics=[dice_loss])
+        #
+        #
+        # self.model.fit_generator(
+        #     generator=train_generator(),
+        #     steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+        #     epochs=self.epochs - 10,
+        #     verbose=2,
+        #     callbacks=callbacks,
+        #     validation_data=valid_generator(),
+        #     validation_steps=math.ceil(nValid / float(self.batch_size)))
 
     def train_all(self):
         '''

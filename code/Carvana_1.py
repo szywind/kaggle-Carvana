@@ -102,8 +102,8 @@ class CarvanaCarSeg():
                         mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
                         img, mask = randomShiftScaleRotate(img, mask,
-                                                           shift_limit=(-0.0625, 0.0625),
-                                                           scale_limit=(-0.1, 0.1),
+                                                           shift_limit=(-0.025, 0.025),
+                                                           scale_limit=(-0.05, 0.05),
                                                            rotate_limit=(-0, 0))
                         img, mask = randomHorizontalFlip(img, mask)
                         if self.factor != 1:
@@ -163,9 +163,12 @@ class CarvanaCarSeg():
         # self.model.compile(optimizer=optimizers.SGD(lr=self.learn_rate, momentum=0.9),
         #                    loss={'classify': 'binary_crossentropy', 'classify': dice_loss},
         #                    metrics=[dice_loss])
-        self.model.compile(optimizer=optimizers.SGD(lr=0.01, momentum=0.9), loss=bce_dice_loss, metrics=[dice_loss])
+
+        # opt = optimizers.SGD(lr=0.01, momentum=0.9)
+        opt = optimizers.RMSprop(lr=0.0001)
+        self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_loss])
         callbacks = [EarlyStopping(monitor='val_loss',
-                                   patience=4,
+                                   patience=6,
                                    verbose=1,
                                    min_delta=1e-4),
                      ReduceLROnPlateau(monitor='val_loss',
@@ -191,7 +194,7 @@ class CarvanaCarSeg():
 
         # opt  = optimizers.SGD(lr=0.1*self.learn_rate, momentum=0.9)
         # self.model.compile(optimizer=opt,
-        #                    loss={'classify': 'binary_crossentropy', 'classify': dice_loss}, # We NEED binary here, since categorical_crossentropy l1 norms the output before calculating loss.
+        #                    loss=bce_dice_loss, # We NEED binary here, since categorical_crossentropy l1 norms the output before calculating loss.
         #                    metrics=[dice_loss])
         #
         #

@@ -34,7 +34,7 @@ CRF_OUTPUT_PATH = '../crf_output/'
 
 
 class CarvanaCarSeg():
-    def __init__(self, input_dim=1024, batch_size=4, epochs=100, learn_rate=1e-2, nb_classes=2):
+    def __init__(self, input_dim=1024, batch_size=3, epochs=100, learn_rate=1e-2, nb_classes=2):
         self.input_dim = input_dim
         self.batch_size = batch_size
         self.epochs = epochs
@@ -234,8 +234,8 @@ class CarvanaCarSeg():
                         mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
                         img, mask = randomShiftScaleRotate(img, mask,
-                                                           shift_limit=(-0.0625, 0.0625),
-                                                           scale_limit=(-0.1, 0.1),
+                                                           shift_limit=(-0.025, 0.025),
+                                                           scale_limit=(-0.05, 0.05),
                                                            rotate_limit=(-0, 0))
                         img, mask = randomHorizontalFlip(img, mask)
                         if self.factor != 1:
@@ -257,9 +257,8 @@ class CarvanaCarSeg():
                     y_batch = np.array(y_batch, np.float32)
                     yield x_batch, y_batch
 
-        self.model.compile(optimizer=optimizers.SGD(lr=self.learn_rate, momentum=0.9),
-                           loss='binary_crossentropy',
-                           metrics=[dice_loss])
+        opt = optimizers.RMSprop(lr=0.0001)
+        self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_loss])
 
         # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
         callbacks = [ModelCheckpoint(filepath=self.model_path,

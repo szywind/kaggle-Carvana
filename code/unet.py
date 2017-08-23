@@ -419,7 +419,7 @@ def block(in_layer, nchan):
     b3 = Conv2D(nchan, (3, 3), padding='same')(b2)
     b3 = BatchNormalization()(b3)
     b3 = Activation('relu')(b3)
-    c
+    out_layer = concatenate([b1, b2, b3], axis=3)
     out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
     return out_layer
 

@@ -165,8 +165,8 @@ class CarvanaCarSeg():
         #                    metrics=[dice_loss])
 
         # opt = optimizers.SGD(lr=0.01, momentum=0.9)
-        opt = optimizers.RMSprop(lr=0.0001)
-        self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_loss])
+        opt = optimizers.RMSpropAccum(lr=0.0001)
+        self.model.compile(optimizer=opt, loss=weightedLoss, metrics=[dice_score, weightedLoss, bce_dice_loss])
         callbacks = [EarlyStopping(monitor='val_loss',
                                    patience=6,
                                    verbose=1,
@@ -258,10 +258,9 @@ class CarvanaCarSeg():
                     yield x_batch, y_batch
 
         self.model.compile(optimizer=optimizers.SGD(lr=self.learn_rate, momentum=0.9),
-                           loss='binary_crossentropy',
-                           metrics=[dice_loss])
+                           loss=bce_dice_loss,
+                           metrics=[dice_score])
 
-        # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
         callbacks = [ModelCheckpoint(filepath=self.model_path,
                                      save_best_only=False,
                                      save_weights_only=True),

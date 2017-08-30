@@ -91,11 +91,30 @@ def transformations2(src, choice):
         src = cv2.flip(src, flipCode=1)
     return src
 
+
+def randomHueSaturationValue(image, hue_shift_limit=(-180, 180),
+                             sat_shift_limit=(-255, 255),
+                             val_shift_limit=(-255, 255), u=0.5):
+    if np.random.random() < u:
+        image = cv2.cvtColor(image, cv2.COLOR_BGR2HSV)
+        h, s, v = cv2.split(image)
+        hue_shift = np.random.uniform(hue_shift_limit[0], hue_shift_limit[1])
+        h = cv2.add(h, hue_shift)
+        sat_shift = np.random.uniform(sat_shift_limit[0], sat_shift_limit[1])
+        s = cv2.add(s, sat_shift)
+        val_shift = np.random.uniform(val_shift_limit[0], val_shift_limit[1])
+        v = cv2.add(v, val_shift)
+        image = cv2.merge((h, s, v))
+        image = cv2.cvtColor(image, cv2.COLOR_HSV2BGR)
+
+    return image
+
+
 def randomShiftScaleRotate(image, mask,
                            shift_limit=(-0.0625, 0.0625),
                            scale_limit=(-0.1, 0.1),
                            rotate_limit=(-45, 45), aspect_limit=(0, 0),
-                           borderMode=cv2.BORDER_CONSTANT, u=0.5, factor=1):
+                           borderMode=cv2.BORDER_CONSTANT, u=0.5):
     if np.random.random() < u:
         height, width, channel = image.shape
 
@@ -136,6 +155,8 @@ def randomHorizontalFlip(image, mask, u=0.5):
         mask = cv2.flip(mask, 1)
 
     return image, mask
+
+
 
 def rle(img):
     '''
@@ -179,16 +200,18 @@ def run_length_encode(mask):
 #     intersection = np.logical_and(im1, im2)
 #     return 2. * intersection.sum() / im_sum
 
-def dice_loss(y_true, y_pred):
+def dice_score(y_true, y_pred):
     smooth = 1.
     y_true_f = K.flatten(y_true)
     y_pred_f = K.flatten(y_pred)
     intersection = K.sum(y_true_f * y_pred_f)
     return (2. * intersection + smooth) / (K.sum(y_true_f) + K.sum(y_pred_f) + smooth)
 
+def dice_loss(y_true, y_pred):
+    return 1 - dice_score(y_true, y_pred)
 
 def bce_dice_loss(y_true, y_pred):
-    return binary_crossentropy(y_true, y_pred) + (1 - dice_loss(y_true, y_pred))
+    return binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
 
 def get_score(train_masks, avg_masks, thr):
     d = 0.0
@@ -199,6 +222,41 @@ def get_score(train_masks, avg_masks, thr):
         d += dice_loss(train_masks[i], pred_mask)
     return d/train_masks.shape[0]
 
+
+def weightedBCELoss2d(y_true, y_pred, weights):
+    w = K.flatten(weights)
+    y_true_f = K.flatten(y_true)
+    y_pred_f = K.flatten(y_pred)
+    loss = w * y_pred_f * (1-y_true_f) + w * K.log(1+K.exp(-y_pred_f))
+    return K.sum(loss)/K.sum(weights)
+
+def weightedSoftDiceLoss(y_true, y_pred, weights):
+    smooth = 1.
+    w = K.flatten(weights)
+    w2 = w * w
+    y_true_f = K.flatten(y_true)
+    y_pred_f = K.flatten(y_pred)
+
+    intersection = K.sum(w2 * y_true_f * y_pred_f)
+    return 1 - (2. * intersection + smooth) / (K.sum(w2*y_true_f) + K.sum(w2*y_pred_f) + smooth)
+
+def weightedLoss(y_true, y_pred):
+    # compute weights
+    # a = cv2.blur(y_true, (11,11))
+    # ind = (a > 0.01) * (a < 0.99)
+    # ind = ind.astype(np.float32)
+    # weights = np.ones(a.shape)
+    a = K.pool2d(y_true, (11,11), strides=(1, 1), padding='same', data_format=None, pool_mode='avg')
+    ind = K.cast(K.greater(a, 0.01), dtype='float32') * K.cast(K.less(a, 0.99), dtype='float32')
+
+    weights = K.cast(K.greater_equal(a, 0), dtype='float32')
+    w0 = K.sum(weights)
+    # w0 = weights.sum()
+    weights = weights + ind * 2
+    w1 = K.sum(weights)
+    # w1 = weights.sum()
+    weights = weights / w1 * w0
+    return weightedBCELoss2d(y_true, y_pred, weights) + weightedSoftDiceLoss(y_true, y_pred, weights)
 
 def get_result(imgs, thresh):
     result = []

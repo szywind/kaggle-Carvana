@@ -411,15 +411,15 @@ def get_unet_512(input_shape=(512, 512, 3),
 
 def block(in_layer, nchan):
     b1 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(in_layer)
-    b1 = BatchNormalization()(b1)
+    # b1 = BatchNormalization()(b1)
     b1 = Activation('relu')(b1)
     b2 = Conv2D(nchan, (3, 3), padding='same')(b1)
-    b2 = BatchNormalization()(b2)
+    # b2 = BatchNormalization()(b2)
     b2 = Activation('relu')(b2)
     b3 = Conv2D(nchan, (3, 3), padding='same')(b2)
-    b3 = BatchNormalization()(b3)
+    # b3 = BatchNormalization()(b3)
     b3 = Activation('relu')(b3)
-    out_layer = concatenate([b1, b2, b3], axis=3)
+    out_layer = concatenate([b1, b3], axis=3)
     out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
     return out_layer
 
@@ -427,31 +427,31 @@ def get_unet_1024(input_shape=(1024, 1024, 3),
                   num_classes=1):
     inputs = Input(shape=input_shape)
     # 1024
-    down0b = block(inputs, 8)
+    down0b = block(inputs, 16)
     down0b_pool = MaxPooling2D((2, 2), strides=(2, 2))(down0b)
 
     # 512
-    down0a = block(down0b_pool, 16)
+    down0a = block(down0b_pool, 32)
     down0a_pool = MaxPooling2D((2, 2), strides=(2, 2))(down0a)
 
     # 256
-    down0 = block(down0a_pool, 32)
+    down0 = block(down0a_pool, 64)
     down0_pool = MaxPooling2D((2, 2), strides=(2, 2))(down0)
 
     # 128
-    down1 = block(down0_pool, 64)
+    down1 = block(down0_pool, 128)
     down1_pool = MaxPooling2D((2, 2), strides=(2, 2))(down1)
 
     # 64
-    down2 = block(down1_pool, 128)
+    down2 = block(down1_pool, 256)
     down2_pool = MaxPooling2D((2, 2), strides=(2, 2))(down2)
 
     # 32
-    down3 = block(down2_pool, 256)
+    down3 = block(down2_pool, 512)
     down3_pool = MaxPooling2D((2, 2), strides=(2, 2))(down3)
 
     # 16
-    down4 = block(down3_pool, 512)
+    down4 = block(down3_pool, 1024)
     down4_pool = MaxPooling2D((2, 2), strides=(2, 2))(down4)
 
     # 8
@@ -460,37 +460,37 @@ def get_unet_1024(input_shape=(1024, 1024, 3),
     # center
     up4 = UpSampling2D((2, 2))(center)
     up4 = concatenate([down4, up4], axis=3)
-    up4 = block(up4, 512)
+    up4 = block(up4, 1024)
 
     # 16
     up3 = UpSampling2D((2, 2))(up4)
     up3 = concatenate([down3, up3], axis=3)
-    up3 = block(up3, 256)
+    up3 = block(up3, 512)
 
     # 32
     up2 = UpSampling2D((2, 2))(up3)
     up2 = concatenate([down2, up2], axis=3)
-    up2 = block(up2, 128)
+    up2 = block(up2, 256)
 
     # 64
     up1 = UpSampling2D((2, 2))(up2)
     up1 = concatenate([down1, up1], axis=3)
-    up1 = block(up1, 64)
+    up1 = block(up1, 128)
 
     # 128
     up0 = UpSampling2D((2, 2))(up1)
     up0 = concatenate([down0, up0], axis=3)
-    up0 = block(up0, 32)
+    up0 = block(up0, 64)
 
     # 256
     up0a = UpSampling2D((2, 2))(up0)
     up0a = concatenate([down0a, up0a], axis=3)
-    up0a = block(up0a, 16)
+    up0a = block(up0a, 32)
 
     # 512
     up0b = UpSampling2D((2, 2))(up0a)
     up0b = concatenate([down0b, up0b], axis=3)
-    up0b = block(up0b, 8)
+    up0b = block(up0b, 16)
 
     # 1024
 

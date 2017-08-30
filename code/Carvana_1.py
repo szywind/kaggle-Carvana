@@ -34,7 +34,7 @@ CRF_OUTPUT_PATH = '../crf_output/'
 
 
 class CarvanaCarSeg():
-    def __init__(self, input_dim=1024, batch_size=3, epochs=100, learn_rate=1e-2, nb_classes=2):
+    def __init__(self, input_dim=1024, batch_size=1, epochs=100, learn_rate=1e-2, nb_classes=2):
         self.input_dim = input_dim
         self.batch_size = batch_size
         self.epochs = epochs
@@ -101,9 +101,13 @@ class CarvanaCarSeg():
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks/{}_mask.gif'.format(id)), dtype=np.uint8)
                         mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
+                        img = randomHueSaturationValue(img,
+                                                       hue_shift_limit=(-50, 50),
+                                                       sat_shift_limit=(-5, 5),
+                                                       val_shift_limit=(-15, 15))
                         img, mask = randomShiftScaleRotate(img, mask,
-                                                           shift_limit=(-0.025, 0.025),
-                                                           scale_limit=(-0.05, 0.05),
+                                                           shift_limit=(-0.0625, 0.0625),
+                                                           scale_limit=(-0.1, 0.1),
                                                            rotate_limit=(-0, 0))
                         img, mask = randomHorizontalFlip(img, mask)
                         if self.factor != 1:
@@ -166,9 +170,12 @@ class CarvanaCarSeg():
 
         # opt = optimizers.SGD(lr=0.01, momentum=0.9)
         opt = optimizers.RMSprop(lr=0.0001)
-        self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_loss])
+        # opt = optimizers.RMSpropAccum(lr=0.0001, accumulator=5)
+
+        # opt = optimizers.RMSprop(lr=0.0001)
+        self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
         callbacks = [EarlyStopping(monitor='val_loss',
-                                   patience=6,
+                                   patience=15,
                                    verbose=1,
                                    min_delta=1e-4),
                      ReduceLROnPlateau(monitor='val_loss',

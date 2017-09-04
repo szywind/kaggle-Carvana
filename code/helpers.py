@@ -270,9 +270,9 @@ def get_final_mask(preds, thresh=0.5, apply_crf=False, images=None):
     result = []
     for i in range(len(preds)):
         pred = preds[i]
-        image = images[i]
         prob = cv2.resize(pred, (ORIG_WIDTH, ORIG_HEIGHT))
-        if apply_crf and image is not None:
+        if apply_crf and images is not None:
+            image = images[i]
             prob = np.dstack((prob,) * 2)
             prob[..., 0] = 1 - prob[..., 1]
             mask, _ = denseCRF(image, prob)

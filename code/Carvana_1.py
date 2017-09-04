@@ -289,55 +289,96 @@ class CarvanaCarSeg():
         self.model.load_weights(self.model_path)
 
         df_test = pd.read_csv(INPUT_PATH + 'sample_submission.csv')
-        test_imgs = np.array(df_test['img'])
+        test_imgs = df_test['img']
 
         nTest = len(test_imgs)
         print('Testing on {} samples'.format(nTest))
 
-        test_splits = 8  # Split test set (number of splits must be multiple of 2)
-        ids_test_splits = np.split(test_imgs, indices_or_sections=test_splits)
+        names = []
+        for id in test_imgs:
+            names.append(id)
 
-        rles = []
-        split_count = 0
-        for test_x in ids_test_splits:
-            split_count += 1
-            nTestBatch = len(test_x)
-            def test_generator():
-                while True:
-                    for start in range(0, nTestBatch, self.batch_size):
-                        x_batch = []
-                        end = min(start + self.batch_size, nTestBatch)
+        str = []
+        batch_size = 10
+        print('Predicting on {} samples with batch_size = {}...'.format(nTest, batch_size))
+        for start in tqdm(range(0, nTest, batch_size)):
+            x_batch = []
+            end = min(start + batch_size, nTest)
+            ids_test_batch = test_imgs[start:end]
+            for id in ids_test_batch.values:
+                img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(id))
+                img = cv2.resize(img, (self.input_dim, self.input_dim))
+                x_batch.append(img)
+            x_batch = np.array(x_batch, np.float32) / 255
+            preds = self.model.predict_on_batch(x_batch)
+            preds = np.squeeze(preds, axis=3) # drop channel dimension
+            result = get_final_mask(preds, thresh=self.threshold, apply_crf=self.apply_crf, images=None)
+            str.extend(map(run_length_encode, result))
 
-                        for i in range(start, end):
-                            img = cv2.imread(INPUT_PATH + 'test/{}'.format(test_x[i]))
-                            img = cv2.resize(img, (self.input_dim//self.factor, self.input_dim//self.factor), interpolation=cv2.INTER_LINEAR)
-                            x_batch.append(img)
-                        x_batch = np.array(x_batch, np.float32) / 255.0
-                        yield x_batch
 
-            print("Predicting on {} samples (split {}/{})".format(nTestBatch, split_count, test_splits))
-            preds = self.model.predict_generator(generator=test_generator(),
-                                                 steps=math.ceil(nTestBatch / float(self.batch_size)))
-            preds = np.squeeze(preds, axis=3)
-
-            print("Generating masks...")
-            result = []
-            for pred in tqdm(preds, miniters=1000):
-                prob = cv2.resize(pred, (ORIG_WIDTH, ORIG_HEIGHT))
-                mask = prob > self.threshold
-                rle = run_length_encode(mask)
-                rles.append(rle)
-                result.append(mask)
-
-            # # save predicted masks
-            if not os.path.exists(OUTPUT_PATH):
-                os.mkdir(OUTPUT_PATH)
-
-            for i in range(nTestBatch):
-                cv2.imwrite(OUTPUT_PATH + '{}'.format(test_x[i]), (255 * result[i]).astype(np.uint8))
         print("Generating submission file...")
-        df_test['rle_mask'] = rles
-        df_test.to_csv('../submit/submission.csv.gz', index=False, compression='gzip')
+        df = pd.DataFrame({'img': names, 'rle_mask': str})
+        df.to_csv('submit/submission.csv.gz', index=False, compression='gzip')
+
+    def test_multithreaded(self):
+        import tensorflow as tf
+        import queue
+        import threading
+
+        graph = tf.get_default_graph()
+
+        if not os.path.isfile(self.model_path):
+            raise RuntimeError("No model found.")
+        self.model.load_weights(self.model_path)
+
+        df_test = pd.read_csv(INPUT_PATH + 'sample_submission.csv')
+        test_imgs = df_test['img']
+
+        nTest = len(test_imgs)
+        print('Testing on {} samples'.format(nTest))
+
+        names = []
+        for id in test_imgs:
+            names.append(id)
+
+        str = []
+        batch_size = 10
+        q_size = 3
+
+        def data_loader(q, ):
+            for start in range(0, nTest, batch_size):
+                x_batch = []
+                end = min(start + batch_size, nTest)
+                ids_test_batch = test_imgs[start:end]
+                for id in ids_test_batch.values:
+                    img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(id))
+                    img = cv2.resize(img, (self.input_dim, self.input_dim))
+                    x_batch.append(img)
+                x_batch = np.array(x_batch, np.float32) / 255
+                q.put(x_batch)
+
+        def predictor(q, ):
+            for i in tqdm(range(0, nTest, batch_size)):
+                x_batch = q.get()
+                with graph.as_default():
+                    preds = self.model.predict_on_batch(x_batch)
+                preds = np.squeeze(preds, axis=3)  # drop channel dimension
+                result = get_final_mask(preds, thresh=self.threshold, apply_crf=self.apply_crf, images=None)
+                str.extend(map(run_length_encode, result))
+
+        q = queue.Queue(maxsize=q_size)
+        t1 = threading.Thread(target=data_loader, name='DataLoader', args=(q,))
+        t2 = threading.Thread(target=predictor, name='Predictor', args=(q,))
+        print('Predicting on {} samples with batch_size = {}...'.format(nTest, batch_size))
+        t1.start()
+        t2.start()
+        # Wait for both threads to finish
+        t1.join()
+        t2.join()
+
+        print("Generating submission file...")
+        df = pd.DataFrame({'img': names, 'rle_mask': str})
+        df.to_csv('../submit/submission.csv.gz', index=False, compression='gzip')
 
     def test_one(self):
         if not os.path.isfile(self.model_path):
@@ -349,12 +390,6 @@ class CarvanaCarSeg():
 
         nTest = len(test_imgs)
         print('Testing on {} samples'.format(nTest))
-
-        if not os.path.isfile(self.model_path):
-            raise RuntimeError("No model found.")
-
-        self.model.load_weights(self.model_path)
-
         print('Create submission...')
         str = []
         nbatch = 0
@@ -402,8 +437,8 @@ class CarvanaCarSeg():
 
 if __name__ == "__main__":
     ccs = CarvanaCarSeg()
-    if ccs.train_with_all:
-        ccs.train_all()
-    else:
-        ccs.train()
-    ccs.test_one()
+    #if ccs.train_with_all:
+    #    ccs.train_all()
+    #else:
+    #    ccs.train()
+    ccs.test_multithreaded()

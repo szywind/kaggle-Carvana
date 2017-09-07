@@ -95,7 +95,7 @@ class CarvanaCarSeg():
 
                     for id in ids_train_batch.values:
                         # j = np.random.randint(self.nAug)
-                        img = cv2.imread(INPUT_PATH + 'train/{}.jpg'.format(id))
+                        img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
                         img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # img = transformations2(img, j)
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks/{}_mask.gif'.format(id)), dtype=np.uint8)
@@ -137,7 +137,7 @@ class CarvanaCarSeg():
                     end = min(start + self.batch_size, nValid)
                     ids_valid_batch = self.ids_valid_split[start:end]
                     for id in ids_valid_batch.values:
-                        img = cv2.imread(INPUT_PATH + 'train/{}.jpg'.format(id))
+                        img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
                         img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks/{}_mask.gif'.format(id)), dtype=np.uint8)
                         mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
@@ -175,7 +175,7 @@ class CarvanaCarSeg():
         # opt = optimizers.RMSprop(lr=0.0001)
         self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
         callbacks = [EarlyStopping(monitor='val_loss',
-                                   patience=15,
+                                   patience=10,
                                    verbose=1,
                                    min_delta=1e-4),
                      ReduceLROnPlateau(monitor='val_loss',
@@ -234,7 +234,7 @@ class CarvanaCarSeg():
 
                     for id in ids_train_batch.values:
                         # j = np.random.randint(self.nAug)
-                        img = cv2.imread(INPUT_PATH + 'train/{}.jpg'.format(id))
+                        img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
                         img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # img = transformations2(img, j)
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks/{}_mask.gif'.format(id)), dtype=np.uint8)
@@ -437,8 +437,8 @@ class CarvanaCarSeg():
 
 if __name__ == "__main__":
     ccs = CarvanaCarSeg()
-    #if ccs.train_with_all:
-    #    ccs.train_all()
-    #else:
-    #    ccs.train()
+    if ccs.train_with_all:
+       ccs.train_all()
+    else:
+       ccs.train()
     ccs.test_multithreaded()

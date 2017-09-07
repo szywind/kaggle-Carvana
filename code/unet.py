@@ -409,16 +409,36 @@ def get_unet_512(input_shape=(512, 512, 3),
 
 
 
+# def block(in_layer, nchan):
+#     b1 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(in_layer)
+#     # b1 = BatchNormalization()(b1)
+#     b1 = Activation('relu')(b1)
+#     b2 = Conv2D(nchan, (3, 3), padding='same')(b1)
+#     # b2 = BatchNormalization()(b2)
+#     b2 = Activation('relu')(b2)
+#     b3 = Conv2D(nchan, (3, 3), padding='same')(b2)
+#     # b3 = BatchNormalization()(b3)
+#     b3 = Activation('relu')(b3)
+#     out_layer = concatenate([b1, b3], axis=3)
+#     out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
+#     return out_layer
+
 def block(in_layer, nchan):
-    b1 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(in_layer)
-    # b1 = BatchNormalization()(b1)
+    b1 = Conv2D(nchan, (3, 1), padding='same', kernel_initializer='he_uniform')(in_layer)
     b1 = Activation('relu')(b1)
-    b2 = Conv2D(nchan, (3, 3), padding='same')(b1)
-    # b2 = BatchNormalization()(b2)
+    b1 = Conv2D(nchan, (1, 3), padding='same', kernel_initializer='he_uniform')(b1)
+    b1 = Activation('relu')(b1)
+
+    b2 = Conv2D(nchan, (3, 1), padding='same', kernel_initializer='he_uniform')(b1)
     b2 = Activation('relu')(b2)
-    b3 = Conv2D(nchan, (3, 3), padding='same')(b2)
-    # b3 = BatchNormalization()(b3)
+    b2 = Conv2D(nchan, (1, 3), padding='same', kernel_initializer='he_uniform')(b2)
+    b2 = Activation('relu')(b2)
+
+    b3 = Conv2D(nchan, (3, 1), padding='same')(b2)
     b3 = Activation('relu')(b3)
+    b3 = Conv2D(nchan, (1, 3), padding='same')(b3)
+    b3 = Activation('relu')(b3)
+
     out_layer = concatenate([b1, b3], axis=3)
     out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
     return out_layer

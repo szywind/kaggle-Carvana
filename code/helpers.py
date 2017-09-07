@@ -265,6 +265,41 @@ def weightedLoss(y_true, y_pred):
     loss = weighted_bce_loss(y_true, y_pred, weights) + weighted_dice_loss(y_true, y_pred, weights)
     return loss
 
+def weightedBCELoss2d(y_true, y_pred, weights):
+    w = K.flatten(weights)
+    y_true_f = K.flatten(y_true)
+    y_pred_f = K.flatten(y_pred)
+    loss = w * y_pred_f * (1-y_true_f) + w * K.log(1+K.exp(-y_pred_f))
+    return K.sum(loss)/K.sum(weights)
+
+def weightedSoftDiceLoss(y_true, y_pred, weights):
+    smooth = 1.
+    w = K.flatten(weights)
+    w2 = w * w
+    y_true_f = K.flatten(y_true)
+    y_pred_f = K.flatten(y_pred)
+
+    intersection = K.sum(w2 * y_true_f * y_pred_f)
+    return 1 - (2. * intersection + smooth) / (K.sum(w2*y_true_f) + K.sum(w2*y_pred_f) + smooth)
+
+def weightedLoss(y_true, y_pred):
+    # compute weights
+    # a = cv2.blur(y_true, (11,11))
+    # ind = (a > 0.01) * (a < 0.99)
+    # ind = ind.astype(np.float32)
+    # weights = np.ones(a.shape)
+    a = K.pool2d(y_true, (11,11), strides=(1, 1), padding='same', data_format=None, pool_mode='avg')
+    ind = K.cast(K.greater(a, 0.01), dtype='float32') * K.cast(K.less(a, 0.99), dtype='float32')
+
+    weights = K.cast(K.greater_equal(a, 0), dtype='float32')
+    w0 = K.sum(weights)
+    # w0 = weights.sum()
+    weights = weights + ind * 2
+    w1 = K.sum(weights)
+    # w1 = weights.sum()
+    weights = weights / w1 * w0
+    return weightedBCELoss2d(y_true, y_pred, weights) + weightedSoftDiceLoss(y_true, y_pred, weights)
+
 def get_result(imgs, thresh):
     result = []
     for img in imgs:

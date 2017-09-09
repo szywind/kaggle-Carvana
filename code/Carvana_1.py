@@ -42,7 +42,7 @@ class CarvanaCarSeg():
         self.nb_classes = nb_classes
         # self.model = newnet.fcn_32s(input_dim, nb_classes)
         self.model = unet.get_unet_1024(input_shape=(self.input_dim, self.input_dim, 3))
-        self.model.load_weights('../weights/best.h5')
+        # self.model.load_weights('../weights/best.h5')
         self.model_path = '../weights/car-segmentation-model.h5'
         self.threshold = 0.5
         self.direct_result = True

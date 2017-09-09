@@ -430,14 +430,14 @@ def block(in_layer, nchan, relu=False):
     else:
         b3 = LeakyReLU(0.0001)(b3)
 
-    # b4 = Conv2D(nchan, (3, 3), padding='same')(b3)
-    # # b4 = BatchNormalization()(b4)
-    # if relu:
-    #     b4 = Activation('relu')(b4)
-    # else:
-    #     b4 = LeakyReLU(0.0001)(b4)
+    b4 = Conv2D(nchan, (3, 3), padding='same')(b3)
+    # b4 = BatchNormalization()(b4)
+    if relu:
+        b4 = Activation('relu')(b4)
+    else:
+        b4 = LeakyReLU(0.0001)(b4)
 
-    out_layer = concatenate([b1, b3], axis=3)
+    out_layer = concatenate([b1, b4], axis=3)
     out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
     return out_layer
 

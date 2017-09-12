@@ -47,7 +47,7 @@ class CarvanaCarSeg():
         self.threshold = 0.5
         self.direct_result = True
         # self.nAug = 2 # incl. horizon mirror augmentation
-        # self.nTTA = 1 # incl. horizon mirror augmentation
+        self.nTTA = 2 # incl. horizon mirror augmentation
         self.load_data()
         self.factor = 1
         self.train_with_all = False
@@ -243,15 +243,19 @@ class CarvanaCarSeg():
 
                     for id in ids_train_batch.values:
                         # j = np.random.randint(self.nAug)
-                        img = cv2.imread(INPUT_PATH + 'train/{}.jpg'.format(id))
+                        img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
                         img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # img = transformations2(img, j)
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks_fixed/{}_mask.gif'.format(id)), dtype=np.uint8)
                         mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
+                        img = randomHueSaturationValue(img,
+                                                       hue_shift_limit=(-50, 50),
+                                                       sat_shift_limit=(-5, 5),
+                                                       val_shift_limit=(-15, 15))
                         img, mask = randomShiftScaleRotate(img, mask,
-                                                           shift_limit=(-0.025, 0.025),
-                                                           scale_limit=(-0.05, 0.05),
+                                                           shift_limit=(-0.0625, 0.0625),
+                                                           scale_limit=(-0.1, 0.1),
                                                            rotate_limit=(-0, 0))
                         img, mask = randomHorizontalFlip(img, mask)
                         if self.factor != 1:
@@ -274,15 +278,28 @@ class CarvanaCarSeg():
                     yield x_batch, y_batch
 
         opt = optimizers.RMSprop(lr=0.0001)
-        self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_loss])
+        self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
 
         # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
-        callbacks = [ModelCheckpoint(filepath=self.model_path,
+        callbacks = [EarlyStopping(monitor='loss',
+                                   patience=6,
+                                   verbose=1,
+                                   min_delta=1e-4),
+                     ReduceLROnPlateau(monitor='loss',
+                                       factor=0.1,
+                                       patience=2,
+                                       cooldown=2,
+                                       verbose=1),
+                     ModelCheckpoint(filepath=self.model_path,
                                      save_best_only=False,
                                      save_weights_only=True),
                      TensorBoard(log_dir='logs')]
-
-
+        # self.model.fit_generator(
+        #     generator=train_all_generator(),
+        #     steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+        #     epochs=1,
+        #     verbose=1,
+        #     callbacks=callbacks)
         self.model.fit_generator(
             generator=train_all_generator(),
             steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
@@ -351,7 +368,7 @@ class CarvanaCarSeg():
             names.append(id)
 
         str = []
-        batch_size = 10
+        batch_size = 10 // self.nTTA
         q_size = 3
 
         def data_loader(q, ):
@@ -363,6 +380,10 @@ class CarvanaCarSeg():
                     img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(id))
                     img = cv2.resize(img, (self.input_dim, self.input_dim))
                     x_batch.append(img)
+
+                    if self.nTTA == 2:
+                        x_batch.append(cv2.flip(img, 1))
+
                 x_batch = np.array(x_batch, np.float32) / 255
                 q.put(x_batch)
 
@@ -372,6 +393,11 @@ class CarvanaCarSeg():
                 with graph.as_default():
                     preds = self.model.predict_on_batch(x_batch)
                 preds = np.squeeze(preds, axis=3)  # drop channel dimension
+                if self.nTTA == 2:
+                    nBatch = len(preds)
+                    for j in range(0, nBatch, 2):
+                        preds[j//2, ...] = 0.5 * (preds[j,...] + cv2.flip(preds[j+1,...], 1))
+                    preds = preds[:nBatch//2]
                 result = get_final_mask(preds, thresh=self.threshold, apply_crf=self.apply_crf, images=None)
                 str.extend(map(run_length_encode, result))
 
@@ -411,7 +437,7 @@ class CarvanaCarSeg():
             images = []
             end = min(start + self.batch_size, nTest)
             for i in range(start, end):
-                raw_img = cv2.imread(INPUT_PATH + 'test/{}'.format(test_imgs[i]))
+                raw_img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(test_imgs[i]))
                 img = cv2.resize(raw_img, (self.input_dim//self.factor, self.input_dim//self.factor), interpolation=cv2.INTER_LINEAR)
                 x_batch.append(img)
                 images.append(raw_img)

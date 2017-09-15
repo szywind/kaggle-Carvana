@@ -2,6 +2,7 @@ from keras.models import Model
 from keras.layers import Input, concatenate, Conv2D, MaxPooling2D, BatchNormalization, Activation, UpSampling2D
 from keras.optimizers import SGD
 import keras.backend as K
+from keras.layers.advanced_activations import LeakyReLU
 
 def dice_loss(y_true, y_pred):
     smooth = 1.
@@ -407,19 +408,36 @@ def get_unet_512(input_shape=(512, 512, 3),
     return model
 
 
-
-
-def block(in_layer, nchan):
+def block(in_layer, nchan, relu=False):
     b1 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(in_layer)
     # b1 = BatchNormalization()(b1)
-    b1 = Activation('relu')(b1)
+    if relu:
+        b1 = Activation('relu')(b1)
+    else:
+        b1 = LeakyReLU(0.0001)(b1)
+
     b2 = Conv2D(nchan, (3, 3), padding='same')(b1)
     # b2 = BatchNormalization()(b2)
-    b2 = Activation('relu')(b2)
+    if relu:
+        b2 = Activation('relu')(b2)
+    else:
+        b2 = LeakyReLU(0.0001)(b2)
+
     b3 = Conv2D(nchan, (3, 3), padding='same')(b2)
     # b3 = BatchNormalization()(b3)
-    b3 = Activation('relu')(b3)
-    out_layer = concatenate([b1, b3], axis=3)
+    if relu:
+        b3 = Activation('relu')(b3)
+    else:
+        b3 = LeakyReLU(0.0001)(b3)
+
+    b4 = Conv2D(nchan, (3, 3), padding='same')(b3)
+    # b4 = BatchNormalization()(b4)
+    if relu:
+        b4 = Activation('relu')(b4)
+    else:
+        b4 = LeakyReLU(0.0001)(b4)
+
+    out_layer = concatenate([b1, b4], axis=3)
     out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
     return out_layer
 

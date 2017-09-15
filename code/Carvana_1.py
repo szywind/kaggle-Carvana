@@ -42,14 +42,15 @@ class CarvanaCarSeg():
         self.nb_classes = nb_classes
         # self.model = newnet.fcn_32s(input_dim, nb_classes)
         self.model = unet.get_unet_1024(input_shape=(self.input_dim, self.input_dim, 3))
+        # self.model.load_weights('../weights/best.h5')
         self.model_path = '../weights/car-segmentation-model.h5'
         self.threshold = 0.5
         self.direct_result = True
         # self.nAug = 2 # incl. horizon mirror augmentation
-        # self.nTTA = 1 # incl. horizon mirror augmentation
+        self.nTTA = 2 # incl. horizon mirror augmentation
         self.load_data()
         self.factor = 1
-        self.train_with_all = False
+        self.train_with_all = True
         self.apply_crf = False
 
     def load_data(self):
@@ -95,10 +96,10 @@ class CarvanaCarSeg():
 
                     for id in ids_train_batch.values:
                         # j = np.random.randint(self.nAug)
-                        img = cv2.imread(INPUT_PATH + 'train/{}.jpg'.format(id))
+                        img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
                         img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # img = transformations2(img, j)
-                        mask = np.array(Image.open(INPUT_PATH + 'train_masks/{}_mask.gif'.format(id)), dtype=np.uint8)
+                        mask = np.array(Image.open(INPUT_PATH + 'train_masks_fixed/{}_mask.gif'.format(id)), dtype=np.uint8)
                         mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
                         img = randomHueSaturationValue(img,
@@ -137,9 +138,9 @@ class CarvanaCarSeg():
                     end = min(start + self.batch_size, nValid)
                     ids_valid_batch = self.ids_valid_split[start:end]
                     for id in ids_valid_batch.values:
-                        img = cv2.imread(INPUT_PATH + 'train/{}.jpg'.format(id))
+                        img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
                         img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
-                        mask = np.array(Image.open(INPUT_PATH + 'train_masks/{}_mask.gif'.format(id)), dtype=np.uint8)
+                        mask = np.array(Image.open(INPUT_PATH + 'train_masks_fixed/{}_mask.gif'.format(id)), dtype=np.uint8)
                         mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         if self.factor != 1:
                             img = cv2.resize(img, (self.input_dim//self.factor, self.input_dim//self.factor), interpolation=cv2.INTER_LINEAR)
@@ -169,13 +170,13 @@ class CarvanaCarSeg():
         #                    metrics=[dice_loss])
 
         # opt = optimizers.SGD(lr=0.01, momentum=0.9)
-        opt = optimizers.RMSprop(lr=0.0001)
+        opt = optimizers.RMSprop(lr=1e-4)
         # opt = optimizers.RMSpropAccum(lr=0.0001, accumulator=5)
 
         # opt = optimizers.RMSprop(lr=0.0001)
         self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
         callbacks = [EarlyStopping(monitor='val_loss',
-                                   patience=15,
+                                   patience=6,
                                    verbose=1,
                                    min_delta=1e-4),
                      ReduceLROnPlateau(monitor='val_loss',
@@ -192,12 +193,20 @@ class CarvanaCarSeg():
         self.model.fit_generator(
             generator=train_generator(),
             steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+            epochs=1,
+            verbose=1,
+            callbacks=callbacks,
+            validation_data=valid_generator(),
+            validation_steps=math.ceil(nValid / float(self.batch_size)))
+
+        self.model.fit_generator(
+            generator=train_generator(),
+            steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
             epochs=self.epochs,
             verbose=2,
             callbacks=callbacks,
             validation_data=valid_generator(),
             validation_steps=math.ceil(nValid / float(self.batch_size)))
-
 
         # opt  = optimizers.SGD(lr=0.1*self.learn_rate, momentum=0.9)
         # self.model.compile(optimizer=opt,
@@ -234,15 +243,19 @@ class CarvanaCarSeg():
 
                     for id in ids_train_batch.values:
                         # j = np.random.randint(self.nAug)
-                        img = cv2.imread(INPUT_PATH + 'train/{}.jpg'.format(id))
+                        img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
                         img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # img = transformations2(img, j)
-                        mask = np.array(Image.open(INPUT_PATH + 'train_masks/{}_mask.gif'.format(id)), dtype=np.uint8)
+                        mask = np.array(Image.open(INPUT_PATH + 'train_masks_fixed/{}_mask.gif'.format(id)), dtype=np.uint8)
                         mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
+                        img = randomHueSaturationValue(img,
+                                                       hue_shift_limit=(-50, 50),
+                                                       sat_shift_limit=(-5, 5),
+                                                       val_shift_limit=(-15, 15))
                         img, mask = randomShiftScaleRotate(img, mask,
-                                                           shift_limit=(-0.025, 0.025),
-                                                           scale_limit=(-0.05, 0.05),
+                                                           shift_limit=(-0.0625, 0.0625),
+                                                           scale_limit=(-0.1, 0.1),
                                                            rotate_limit=(-0, 0))
                         img, mask = randomHorizontalFlip(img, mask)
                         if self.factor != 1:
@@ -265,15 +278,28 @@ class CarvanaCarSeg():
                     yield x_batch, y_batch
 
         opt = optimizers.RMSprop(lr=0.0001)
-        self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_loss])
+        self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
 
         # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
-        callbacks = [ModelCheckpoint(filepath=self.model_path,
+        callbacks = [EarlyStopping(monitor='loss',
+                                   patience=6,
+                                   verbose=1,
+                                   min_delta=1e-4),
+                     ReduceLROnPlateau(monitor='loss',
+                                       factor=0.1,
+                                       patience=2,
+                                       cooldown=2,
+                                       verbose=1),
+                     ModelCheckpoint(filepath=self.model_path,
                                      save_best_only=False,
                                      save_weights_only=True),
                      TensorBoard(log_dir='logs')]
-
-
+        self.model.fit_generator(
+            generator=train_all_generator(),
+            steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+            epochs=1,
+            verbose=1,
+            callbacks=callbacks)
         self.model.fit_generator(
             generator=train_all_generator(),
             steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
@@ -289,55 +315,105 @@ class CarvanaCarSeg():
         self.model.load_weights(self.model_path)
 
         df_test = pd.read_csv(INPUT_PATH + 'sample_submission.csv')
-        test_imgs = np.array(df_test['img'])
+        test_imgs = df_test['img']
 
         nTest = len(test_imgs)
         print('Testing on {} samples'.format(nTest))
 
-        test_splits = 8  # Split test set (number of splits must be multiple of 2)
-        ids_test_splits = np.split(test_imgs, indices_or_sections=test_splits)
+        names = []
+        for id in test_imgs:
+            names.append(id)
 
-        rles = []
-        split_count = 0
-        for test_x in ids_test_splits:
-            split_count += 1
-            nTestBatch = len(test_x)
-            def test_generator():
-                while True:
-                    for start in range(0, nTestBatch, self.batch_size):
-                        x_batch = []
-                        end = min(start + self.batch_size, nTestBatch)
+        str = []
+        batch_size = 10
+        print('Predicting on {} samples with batch_size = {}...'.format(nTest, batch_size))
+        for start in tqdm(range(0, nTest, batch_size)):
+            x_batch = []
+            end = min(start + batch_size, nTest)
+            ids_test_batch = test_imgs[start:end]
+            for id in ids_test_batch.values:
+                img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(id))
+                img = cv2.resize(img, (self.input_dim, self.input_dim))
+                x_batch.append(img)
+            x_batch = np.array(x_batch, np.float32) / 255
+            preds = self.model.predict_on_batch(x_batch)
+            preds = np.squeeze(preds, axis=3) # drop channel dimension
+            result = get_final_mask(preds, thresh=self.threshold, apply_crf=self.apply_crf, images=None)
+            str.extend(map(run_length_encode, result))
 
-                        for i in range(start, end):
-                            img = cv2.imread(INPUT_PATH + 'test/{}'.format(test_x[i]))
-                            img = cv2.resize(img, (self.input_dim//self.factor, self.input_dim//self.factor), interpolation=cv2.INTER_LINEAR)
-                            x_batch.append(img)
-                        x_batch = np.array(x_batch, np.float32) / 255.0
-                        yield x_batch
 
-            print("Predicting on {} samples (split {}/{})".format(nTestBatch, split_count, test_splits))
-            preds = self.model.predict_generator(generator=test_generator(),
-                                                 steps=math.ceil(nTestBatch / float(self.batch_size)))
-            preds = np.squeeze(preds, axis=3)
-
-            print("Generating masks...")
-            result = []
-            for pred in tqdm(preds, miniters=1000):
-                prob = cv2.resize(pred, (ORIG_WIDTH, ORIG_HEIGHT))
-                mask = prob > self.threshold
-                rle = run_length_encode(mask)
-                rles.append(rle)
-                result.append(mask)
-
-            # # save predicted masks
-            if not os.path.exists(OUTPUT_PATH):
-                os.mkdir(OUTPUT_PATH)
-
-            for i in range(nTestBatch):
-                cv2.imwrite(OUTPUT_PATH + '{}'.format(test_x[i]), (255 * result[i]).astype(np.uint8))
         print("Generating submission file...")
-        df_test['rle_mask'] = rles
-        df_test.to_csv('../submit/submission.csv.gz', index=False, compression='gzip')
+        df = pd.DataFrame({'img': names, 'rle_mask': str})
+        df.to_csv('submit/submission.csv.gz', index=False, compression='gzip')
+
+    def test_multithreaded(self):
+        import tensorflow as tf
+        import queue
+        import threading
+
+        graph = tf.get_default_graph()
+
+        if not os.path.isfile(self.model_path):
+            raise RuntimeError("No model found.")
+        self.model.load_weights(self.model_path)
+
+        df_test = pd.read_csv(INPUT_PATH + 'sample_submission.csv')
+        test_imgs = df_test['img']
+
+        nTest = len(test_imgs)
+        print('Testing on {} samples'.format(nTest))
+
+        names = []
+        for id in test_imgs:
+            names.append(id)
+
+        str = []
+        batch_size = 10 // self.nTTA
+        q_size = 3
+
+        def data_loader(q, ):
+            for start in range(0, nTest, batch_size):
+                x_batch = []
+                end = min(start + batch_size, nTest)
+                ids_test_batch = test_imgs[start:end]
+                for id in ids_test_batch.values:
+                    img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(id))
+                    img = cv2.resize(img, (self.input_dim, self.input_dim))
+                    x_batch.append(img)
+
+                    if self.nTTA == 2:
+                        x_batch.append(cv2.flip(img, 1))
+
+                x_batch = np.array(x_batch, np.float32) / 255
+                q.put(x_batch)
+
+        def predictor(q, ):
+            for i in tqdm(range(0, nTest, batch_size)):
+                x_batch = q.get()
+                with graph.as_default():
+                    preds = self.model.predict_on_batch(x_batch)
+                preds = np.squeeze(preds, axis=3)  # drop channel dimension
+                if self.nTTA == 2:
+                    nBatch = len(preds)
+                    for j in range(0, nBatch, 2):
+                        preds[j//2, ...] = 0.5 * (preds[j,...] + cv2.flip(preds[j+1,...], 1))
+                    preds = preds[:nBatch//2]
+                result = get_final_mask(preds, thresh=self.threshold, apply_crf=self.apply_crf, images=None)
+                str.extend(map(run_length_encode, result))
+
+        q = queue.Queue(maxsize=q_size)
+        t1 = threading.Thread(target=data_loader, name='DataLoader', args=(q,))
+        t2 = threading.Thread(target=predictor, name='Predictor', args=(q,))
+        print('Predicting on {} samples with batch_size = {}...'.format(nTest, batch_size))
+        t1.start()
+        t2.start()
+        # Wait for both threads to finish
+        t1.join()
+        t2.join()
+
+        print("Generating submission file...")
+        df = pd.DataFrame({'img': names, 'rle_mask': str})
+        df.to_csv('../submit/submission.csv.gz', index=False, compression='gzip')
 
     def test_one(self):
         if not os.path.isfile(self.model_path):
@@ -349,12 +425,6 @@ class CarvanaCarSeg():
 
         nTest = len(test_imgs)
         print('Testing on {} samples'.format(nTest))
-
-        if not os.path.isfile(self.model_path):
-            raise RuntimeError("No model found.")
-
-        self.model.load_weights(self.model_path)
-
         print('Create submission...')
         str = []
         nbatch = 0
@@ -367,7 +437,7 @@ class CarvanaCarSeg():
             images = []
             end = min(start + self.batch_size, nTest)
             for i in range(start, end):
-                raw_img = cv2.imread(INPUT_PATH + 'test/{}'.format(test_imgs[i]))
+                raw_img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(test_imgs[i]))
                 img = cv2.resize(raw_img, (self.input_dim//self.factor, self.input_dim//self.factor), interpolation=cv2.INTER_LINEAR)
                 x_batch.append(img)
                 images.append(raw_img)
@@ -406,4 +476,5 @@ if __name__ == "__main__":
         ccs.train_all()
     else:
         ccs.train()
-    ccs.test_one()
+    # ccs.test_one()
+    ccs.test_multithreaded()

@@ -50,7 +50,7 @@ class CarvanaCarSeg():
         self.nTTA = 2 # incl. horizon mirror augmentation
         self.load_data()
         self.factor = 1
-        self.train_with_all = False
+        self.train_with_all = True
         self.apply_crf = False
 
     def load_data(self):
@@ -294,12 +294,12 @@ class CarvanaCarSeg():
                                      save_best_only=False,
                                      save_weights_only=True),
                      TensorBoard(log_dir='logs')]
-        # self.model.fit_generator(
-        #     generator=train_all_generator(),
-        #     steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
-        #     epochs=1,
-        #     verbose=1,
-        #     callbacks=callbacks)
+        self.model.fit_generator(
+            generator=train_all_generator(),
+            steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+            epochs=1,
+            verbose=1,
+            callbacks=callbacks)
         self.model.fit_generator(
             generator=train_all_generator(),
             steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),

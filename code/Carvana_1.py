@@ -188,6 +188,14 @@ class CarvanaCarSeg():
                                      save_weights_only=True),
                      TensorBoard(log_dir='logs')]
 
+        self.model.fit_generator(
+            generator=train_generator(),
+            steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+            epochs=1,
+            verbose=1,
+            callbacks=callbacks,
+            validation_data=valid_generator(),
+            validation_steps=math.ceil(nValid / float(self.batch_size)))
 
         self.model.fit_generator(
             generator=train_generator(),
@@ -241,9 +249,9 @@ class CarvanaCarSeg():
                         mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
                         img = randomHueSaturationValue(img,
-                                                       hue_shift_limit=(-50, 50),
-                                                       sat_shift_limit=(-5, 5),
-                                                       val_shift_limit=(-15, 15))
+                                                       hue_shift_limit=(-60, 60),
+                                                       sat_shift_limit=(-10, 10),
+                                                       val_shift_limit=(-20, 20))
                         img, mask = randomShiftScaleRotate(img, mask,
                                                            shift_limit=(-0.0625, 0.0625),
                                                            scale_limit=(-0.1, 0.1),
@@ -359,8 +367,8 @@ class CarvanaCarSeg():
             names.append(id)
 
         str = []
-        batch_size = 5
-        q_size = 3
+        batch_size = 4
+        q_size = 2
 
         def data_loader(q, ):
             for start in range(0, nTest, batch_size):
@@ -464,7 +472,7 @@ class CarvanaCarSeg():
 if __name__ == "__main__":
     ccs = CarvanaCarSeg()
     if ccs.train_with_all:
-       ccs.train_all()
+        ccs.train_all()
     else:
-       ccs.train()
+        ccs.train()
     ccs.test_multithreaded()

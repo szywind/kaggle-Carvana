@@ -439,7 +439,12 @@ def block(in_layer, nchan):
     b3 = Conv2D(nchan, (1, 3), padding='same')(b3)
     b3 = Activation('relu')(b3)
 
-    out_layer = concatenate([b1, b3], axis=3)
+    b4 = Conv2D(nchan, (3, 1), padding='same')(b3)
+    b4 = Activation('relu')(b4)
+    b4 = Conv2D(nchan, (1, 3), padding='same')(b4)
+    b4 = Activation('relu')(b4)
+
+    out_layer = concatenate([b1, b4], axis=3)
     out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
     return out_layer
 

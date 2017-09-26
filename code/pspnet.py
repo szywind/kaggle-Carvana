@@ -2,7 +2,7 @@ from keras.models import Model
 from keras.layers import Input, concatenate, ZeroPadding2D, Conv2D, MaxPooling2D, AveragePooling2D, \
     BatchNormalization, Activation, UpSampling2D
 from keras.initializers import he_uniform
-from keras.layers.merge import add, Concatenate
+from keras.layers.merge import add
 from keras.layers.core import Dropout
 
 def unit_1(in_layer, n1=64, n2=64, n3=256, s2=1, p2=1, d2=1):
@@ -70,7 +70,7 @@ def unit_3(in_layer):
     x2 = pyramid(30, 30)
     x3 = pyramid(20, 20)
     x4 = pyramid(10, 10)
-    return Concatenate([in_layer, x1, x2, x3, x4])
+    return concatenate([in_layer, x1, x2, x3, x4])
 
 def pspnet(input_shape=(473, 473, 3), num_classes=1):
     inputs = Input(shape=input_shape)
@@ -104,12 +104,12 @@ def pspnet(input_shape=(473, 473, 3), num_classes=1):
     # conv3_4
     x = unit_1(x, n1=256, n2=256, n3=1024, s2=1, p2=2, d2=2)
     for _ in range(22):
-        x = unit_2(x, n1=256, n2=256, n3=1024, s2=1, p2=2, d2=2)
+        x = unit_2(x, n1=256, n2=256, n3=1024, p2=2, d2=2)
 
     # conv4_23
     x = unit_1(x, n1=512, n2=512, n3=2048, s2=1, p2=4, d2=4)
     for _ in range(2):
-        x = unit_2(x, n1=512, n2=512, n3=2048, s2=1, p2=4, d2=4)
+        x = unit_2(x, n1=512, n2=512, n3=2048, p2=4, d2=4)
 
     # conv5_3
     x = unit_3(x) # return x is 60x60x4096
@@ -124,4 +124,53 @@ def pspnet(input_shape=(473, 473, 3), num_classes=1):
 
     model = Model(inputs=inputs, outputs=classify)
 
+    return model
+
+
+def pspnet2(input_shape=(473, 473, 3), num_classes=1):
+    def shortcut(in_layer, n1, p1, p2, s1, s2, d1=1, d2=1):
+        x = Conv2D(n1, (3, 3), strides=(s1, s1), padding=(p1, p1), kernel_initializer=he_uniform(), dilation_rate=d1)(in_layer)
+        # x = BatchNormalization(momentum=0.95)(x)
+        x = Activation('relu')(x)
+        x = Conv2D(n1, (3, 3), strides=(s2, s2), padding=(p2, p2), kernel_initializer=he_uniform(), dilation_rate=d2)(x)
+        x = add([in_layer, x])
+        x = Activation('relu')(x)
+        return x
+
+    def atrousConv(in_layer, n1, p1, p2, p3, s1, s2, s3, d1=1, d2=1, d3=1):
+        x1 = Conv2D(n1, (3, 3), strides=(s1, s1), padding=(p1, p1), kernel_initializer=he_uniform(), dilation_rate=d1)(in_layer)
+        x1 = Activation('relu')(x1)
+        x1 = Conv2D(n1, (3, 3), strides=(s2, s2), padding=(p2, p2), kernel_initializer=he_uniform(), dilation_rate=d2)(x1)
+
+        x2 = Conv2D(n1, (1, 1), strides=(s3, s3), padding=(p3, p3), kernel_initializer=he_uniform(), dilation_rate=d3)(in_layer)
+        x = add([x1, x2])
+        x = Activation('relu')(x)
+        return x
+
+    inputs = Input(shape=input_shape)
+
+    x = Conv2D(16, (7, 7), strides=2, padding=3, kernel_initializer=he_uniform(), activation='relu')(inputs)
+    x = MaxPooling2D((3, 3), strides=(2, 2), padding=(1, 1))(x)
+
+    x = shortcut(x, n1=16, p1=1, p2=1, s1=1, s2=1)
+    x = shortcut(x, n1=16, p1=1, p2=1, s1=1, s2=1)
+
+    x = atrousConv(x, n1=32, p1=1, p2=1, p3=0, s1=2, s2=1, s3=2)
+    x = shortcut(x, n1=32, p1=1,p2=1,s1=1,s2=1)
+
+    x = atrousConv(x, n1=64, p1=2, p2=2, p3=0, s1=1, s2=1, s3=1, d1=2, d2=2)
+    x = shortcut(x, n1=64, p1=2, p2=2, s1=1, s2=1, d1=2, d2=2)
+
+    x = atrousConv(x, n1=128, p1=4, p2=4, p3=0, s1=1, s2=1, s3=1, d1=4, d2=4)
+    x = shortcut(x, n1=128, p1=4, p2=4, s1=1, s2=1, d1=4, d2=4)
+
+    x = Conv2D(128, (1, 1), strides=(1, 1), padding=(0, 0), activation='relu', kernel_initializer=he_uniform())(x)
+
+    x = Conv2D(num_classes, (1, 1), strides=(1, 1), padding=(0, 0), activation='sigmoid')(x)
+
+    x = UpSampling2D((8, 8))(x)
+
+    model = Model(inputs=inputs, outputs=x)
+
+    # model.compile(optimizer=SGD(lr=0.01, momentum=0.9), loss=bce_dice_loss, metrics=[dice_loss])
     return model

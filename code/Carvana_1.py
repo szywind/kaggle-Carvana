@@ -41,16 +41,18 @@ class CarvanaCarSeg():
         self.learn_rate = learn_rate
         self.nb_classes = nb_classes
         # self.model = newnet.fcn_32s(input_dim, nb_classes)
+        # self.model = pspnet.pspnet2(input_shape=(self.input_dim, self.input_dim, 3))
         self.model = unet.get_unet_1024(input_shape=(self.input_dim, self.input_dim, 3))
-        # self.model.load_weights('../weights/best.h5')
-        self.model_path = '../weights/car-segmentation-model.h5'
+        # self.model.load_weights('../weights/mf-deeper-tta.h5')
+        self.model_path = '../weights/car-segmentation-model-mf.h5'
+        self.model.load_weights(self.model_path)
         self.threshold = 0.5
         self.direct_result = True
         # self.nAug = 2 # incl. horizon mirror augmentation
         self.nTTA = 2 # incl. horizon mirror augmentation
         self.load_data()
         self.factor = 1
-        self.train_with_all = True
+        self.train_with_all = False
         self.apply_crf = False
 
     def load_data(self):
@@ -170,13 +172,13 @@ class CarvanaCarSeg():
         #                    metrics=[dice_loss])
 
         # opt = optimizers.SGD(lr=0.01, momentum=0.9)
-        opt = optimizers.RMSprop(lr=1e-4)
-        # opt = optimizers.RMSpropAccum(lr=0.0001, accumulator=5)
+        opt = optimizers.RMSprop(lr=1e-5)
+        # opt = optimizers.RMSpropAccum(lr=0.0001, accumulator=20)
 
         # opt = optimizers.RMSprop(lr=0.0001)
         self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
         callbacks = [EarlyStopping(monitor='val_loss',
-                                   patience=6,
+                                   patience=15,
                                    verbose=1,
                                    min_delta=1e-4),
                      ReduceLROnPlateau(monitor='val_loss',
@@ -189,21 +191,11 @@ class CarvanaCarSeg():
                                      save_weights_only=True),
                      TensorBoard(log_dir='logs')]
 
-
         self.model.fit_generator(
             generator=train_generator(),
             steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
             epochs=1,
             verbose=1,
-            callbacks=callbacks,
-            validation_data=valid_generator(),
-            validation_steps=math.ceil(nValid / float(self.batch_size)))
-
-        self.model.fit_generator(
-            generator=train_generator(),
-            steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
-            epochs=self.epochs,
-            verbose=2,
             callbacks=callbacks,
             validation_data=valid_generator(),
             validation_steps=math.ceil(nValid / float(self.batch_size)))
@@ -214,14 +206,14 @@ class CarvanaCarSeg():
         #                    metrics=[dice_loss])
         #
         #
-        # self.model.fit_generator(
-        #     generator=train_generator(),
-        #     steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
-        #     epochs=self.epochs - 10,
-        #     verbose=2,
-        #     callbacks=callbacks,
-        #     validation_data=valid_generator(),
-        #     validation_steps=math.ceil(nValid / float(self.batch_size)))
+        self.model.fit_generator(
+            generator=train_generator(),
+            steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+            epochs=self.epochs,
+            verbose=2,
+            callbacks=callbacks,
+            validation_data=valid_generator(),
+            validation_steps=math.ceil(nValid / float(self.batch_size)))
 
     def train_all(self):
         '''
@@ -253,6 +245,10 @@ class CarvanaCarSeg():
                                                        hue_shift_limit=(-50, 50),
                                                        sat_shift_limit=(-5, 5),
                                                        val_shift_limit=(-15, 15))
+                        img = randomHueSaturationValue(img,
+                                                       hue_shift_limit=(-60, 60),
+                                                       sat_shift_limit=(-10, 10),
+                                                       val_shift_limit=(-20, 20))
                         img, mask = randomShiftScaleRotate(img, mask,
                                                            shift_limit=(-0.0625, 0.0625),
                                                            scale_limit=(-0.1, 0.1),
@@ -277,12 +273,12 @@ class CarvanaCarSeg():
                     y_batch = np.array(y_batch, np.float32)
                     yield x_batch, y_batch
 
-        opt = optimizers.RMSprop(lr=0.0001)
+        opt = optimizers.RMSprop(lr=0.00001)
         self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
 
         # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
         callbacks = [EarlyStopping(monitor='loss',
-                                   patience=6,
+                                   patience=3,
                                    verbose=1,
                                    min_delta=1e-4),
                      ReduceLROnPlateau(monitor='loss',
@@ -358,7 +354,7 @@ class CarvanaCarSeg():
         self.model.load_weights(self.model_path)
 
         df_test = pd.read_csv(INPUT_PATH + 'sample_submission.csv')
-        test_imgs = df_test['img']
+        test_imgs = list(df_test['img'])
 
         nTest = len(test_imgs)
         print('Testing on {} samples'.format(nTest))
@@ -368,8 +364,8 @@ class CarvanaCarSeg():
             names.append(id)
 
         str = []
-        batch_size = 10 // self.nTTA
-        q_size = 3
+        batch_size = 4 // self.nTTA
+        q_size = 2
 
         def data_loader(q, ):
             for start in range(0, nTest, batch_size):
@@ -476,5 +472,4 @@ if __name__ == "__main__":
         ccs.train_all()
     else:
         ccs.train()
-    # ccs.test_one()
     ccs.test_multithreaded()

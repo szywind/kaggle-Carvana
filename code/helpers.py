@@ -211,7 +211,7 @@ def dice_loss(y_true, y_pred):
     return 1 - dice_score(y_true, y_pred)
 
 def bce_dice_loss(y_true, y_pred):
-    return binary_crossentropy(y_true, y_pred) + K.log(dice_loss(y_true, y_pred))
+    return binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
 
 def get_score(train_masks, avg_masks, thr):
     d = 0.0
@@ -313,7 +313,7 @@ def get_final_mask(preds, thresh=0.5, apply_crf=False, images=None):
     for i in range(len(preds)):
         pred = preds[i]
         prob = cv2.resize(pred, (ORIG_WIDTH, ORIG_HEIGHT))
-        if apply_crf and image is not None:
+        if apply_crf and images is not None:
             image = images[i]
             prob = np.dstack((prob,) * 2)
             prob[..., 0] = 1 - prob[..., 1]
@@ -404,19 +404,3 @@ def draw(img, mask):
     plt.imshow(mask)
     plt.subplot(133)
     plt.imshow(img_masked)
-
-def fix_mask_range():
-    import os
-    from PIL import Image
-    os.chdir('/home/szywind/Desktop/corrected_masks')
-    fls = os.listdir(os.getcwd())
-    for i in fls:
-        img = np.array(Image.open('./{}'.format(i)), dtype=np.uint8)
-        img[np.where(img > 0)] = 255
-        print(img.max())
-        print(img.min())
-        # import cv2
-        # cv2.imwrite('./{}'.format(i), img)
-        j = Image.fromarray(img)
-        # j.save(i)
-        print(img.dtype)

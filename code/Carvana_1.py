@@ -178,11 +178,11 @@ class CarvanaCarSeg():
         # opt = optimizers.RMSprop(lr=0.0001)
         self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
         callbacks = [EarlyStopping(monitor='val_loss',
-                                   patience=3,
+                                   patience=15,
                                    verbose=1,
                                    min_delta=1e-4),
                      ReduceLROnPlateau(monitor='val_loss',
-                                       factor=0.2,
+                                       factor=0.1,
                                        patience=2,
                                        cooldown=2,
                                        verbose=1),
@@ -190,7 +190,6 @@ class CarvanaCarSeg():
                                      save_best_only=True,
                                      save_weights_only=True),
                      TensorBoard(log_dir='logs')]
-
 
         self.model.fit_generator(
             generator=train_generator(),
@@ -246,6 +245,10 @@ class CarvanaCarSeg():
                                                        hue_shift_limit=(-50, 50),
                                                        sat_shift_limit=(-5, 5),
                                                        val_shift_limit=(-15, 15))
+                        img = randomHueSaturationValue(img,
+                                                       hue_shift_limit=(-60, 60),
+                                                       sat_shift_limit=(-10, 10),
+                                                       val_shift_limit=(-20, 20))
                         img, mask = randomShiftScaleRotate(img, mask,
                                                            shift_limit=(-0.0625, 0.0625),
                                                            scale_limit=(-0.1, 0.1),
@@ -351,7 +354,7 @@ class CarvanaCarSeg():
         self.model.load_weights(self.model_path)
 
         df_test = pd.read_csv(INPUT_PATH + 'sample_submission.csv')
-        test_imgs = df_test['img']
+        test_imgs = list(df_test['img'])
 
         nTest = len(test_imgs)
         print('Testing on {} samples'.format(nTest))
@@ -465,9 +468,8 @@ class CarvanaCarSeg():
 
 if __name__ == "__main__":
     ccs = CarvanaCarSeg()
-    #if ccs.train_with_all:
-    #    ccs.train_all()
-    #else:
-    #    ccs.train()
-    # ccs.test_one()
+    if ccs.train_with_all:
+        ccs.train_all()
+    else:
+        ccs.train()
     ccs.test_multithreaded()

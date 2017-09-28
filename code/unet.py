@@ -596,7 +596,7 @@ def get_unet_1024(input_shape=(1024, 1024, 3),
     down4_pool = MaxPooling2D((2, 2), strides=(2, 2))(down4)
 
     # 8
-    center = block(down4_pool, 1800) #1856
+    center = block(down4_pool, 1024)
 
     # center
     up4 = UpSampling2D((2, 2))(center)

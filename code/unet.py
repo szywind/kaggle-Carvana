@@ -3,6 +3,7 @@ from keras.layers import Input, concatenate, Conv2D, MaxPooling2D, BatchNormaliz
 from keras.optimizers import SGD
 import keras.backend as K
 from keras.layers.advanced_activations import LeakyReLU
+from keras.layers.merge import add
 
 def dice_loss(y_true, y_pred):
     smooth = 1.
@@ -408,7 +409,7 @@ def get_unet_512(input_shape=(512, 512, 3),
     return model
 
 
-def block(in_layer, nchan, relu=False):
+def block(in_layer, nchan, relu=True):
     b1 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(in_layer)
     # b1 = BatchNormalization()(b1)
     if relu:
@@ -416,21 +417,21 @@ def block(in_layer, nchan, relu=False):
     else:
         b1 = LeakyReLU(0.0001)(b1)
 
-    b2 = Conv2D(nchan, (3, 3), padding='same')(b1)
+    b2 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(b1)
     # b2 = BatchNormalization()(b2)
     if relu:
         b2 = Activation('relu')(b2)
     else:
         b2 = LeakyReLU(0.0001)(b2)
 
-    b3 = Conv2D(nchan, (3, 3), padding='same')(b2)
+    b3 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(b2)
     # b3 = BatchNormalization()(b3)
     if relu:
         b3 = Activation('relu')(b3)
     else:
         b3 = LeakyReLU(0.0001)(b3)
 
-    b4 = Conv2D(nchan, (3, 3), padding='same')(b3)
+    b4 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(b3)
     # b4 = BatchNormalization()(b4)
     if relu:
         b4 = Activation('relu')(b4)
@@ -439,6 +440,92 @@ def block(in_layer, nchan, relu=False):
 
     out_layer = concatenate([b1, b4], axis=3)
     out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
+    if relu:
+        out_layer = Activation('relu')(out_layer)
+    else:
+        out_layer = LeakyReLU(0.0001)(out_layer)
+    return out_layer
+
+def block2(in_layer, nchan, relu=True):
+    b0 = Conv2D(nchan, (3, 3), padding='same')(in_layer)
+    # b1 = BatchNormalization()(b1)
+    if relu:
+        b1 = Activation('relu')(b0)
+    else:
+        b1 = LeakyReLU(0.0001)(b0)
+
+    b2 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(b1)
+    # b2 = BatchNormalization()(b2)
+    if relu:
+        b2 = Activation('relu')(b2)
+    else:
+        b2 = LeakyReLU(0.0001)(b2)
+
+    b3 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(b2)
+    # b3 = BatchNormalization()(b3)
+    if relu:
+        b3 = Activation('relu')(b3)
+    else:
+        b3 = LeakyReLU(0.0001)(b3)
+
+    b4 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(b3)
+    # b4 = BatchNormalization()(b4)
+    if relu:
+        b4 = Activation('relu')(b4)
+    else:
+        b4 = LeakyReLU(0.0001)(b4)
+
+    b5 = Conv2D(nchan, (3, 3), padding='same', kernel_initializer='he_uniform')(b4)
+    # b4 = BatchNormalization()(b4)
+
+    out_layer = add([b0, b5])
+    if relu:
+        out_layer = Activation('relu')(out_layer)
+    else:
+        out_layer = LeakyReLU(0.0001)(out_layer)
+    #out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
+    return out_layer
+
+def block3(in_layer, nchan):
+    b1b = Conv2D(nchan, (1, 3), padding='same', kernel_initializer='he_uniform')(in_layer)
+    b1b = Activation('relu')(b1b)
+    b1b = Conv2D(nchan, (3, 1), padding='same', kernel_initializer='he_uniform')(b1b)
+    b1b = Activation('relu')(b1b)
+
+    b1a = Conv2D(nchan, (3, 1), padding='same', kernel_initializer='he_uniform')(in_layer)
+    b1a = Activation('relu')(b1a)
+    b1a = Conv2D(nchan, (1, 3), padding='same', kernel_initializer='he_uniform')(b1a)
+    b1a = Activation('relu')(b1a)
+
+    #b1 = concatenate([b1b, b1a], axis=3)
+    b1 = add([b1b, b1a])
+    b1 = Conv2D(nchan, (1, 1), padding='same')(b1)
+    b2b = Conv2D(nchan, (1, 3), padding='same', kernel_initializer='he_uniform')(b1)
+    b2b = Activation('relu')(b2b)
+    b2b = Conv2D(nchan, (3, 1), padding='same', kernel_initializer='he_uniform')(b2b)
+    b2b = Activation('relu')(b2b)
+
+    b2a = Conv2D(nchan, (3, 1), padding='same', kernel_initializer='he_uniform')(b1)
+    b2a = Activation('relu')(b2a)
+    b2a = Conv2D(nchan, (1, 3), padding='same', kernel_initializer='he_uniform')(b2a)
+    b2a = Activation('relu')(b2a)
+
+    #b2 = concatenate([b2b, b2a], axis=3)
+    b2 = add([b2b, b2a])
+    b2 = Conv2D(nchan, (1, 1), padding='same')(b2)
+    b3b = Conv2D(nchan, (1, 3), padding='same')(b2)
+    b3b = Activation('relu')(b3b)
+    b3b = Conv2D(nchan, (3, 1), padding='same')(b3b)
+    b3b = Activation('relu')(b3b)
+
+    b3a = Conv2D(nchan, (3, 1), padding='same')(b2)
+    b3a = Activation('relu')(b3a)
+    b3a = Conv2D(nchan, (1, 3), padding='same')(b3a)
+    b3a = Activation('relu')(b3a)
+    out_layer = add([b1, b3a, b3b])
+    #out_layer = concatenate([b3b, b3a], axis=3)
+    #out_layer = Conv2D(nchan, (1, 1), padding='same')(b3)
+    #out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
     return out_layer
 
 def get_unet_1024(input_shape=(1024, 1024, 3),
@@ -511,6 +598,75 @@ def get_unet_1024(input_shape=(1024, 1024, 3),
     up0b = block(up0b, 16)
 
     # 1024
+
+    classify = Conv2D(num_classes, (1, 1), activation='sigmoid')(up0b)
+
+    model = Model(inputs=inputs, outputs=classify)
+
+    # model.compile(optimizer=SGD(lr=0.01, momentum=0.9), loss=bce_dice_loss, metrics=[dice_loss])
+    return model
+
+def get_unet_512_nobn(input_shape=(512, 512, 3),
+                  num_classes=1):
+    inputs = Input(shape=input_shape)
+    # 512
+    down0b = block(inputs, 32)
+    down0b_pool = MaxPooling2D((2, 2), strides=(2, 2))(down0b)
+
+    # 256
+    down0a = block(down0b_pool, 64)
+    down0a_pool = MaxPooling2D((2, 2), strides=(2, 2))(down0a)
+
+    # 128
+    down0 = block(down0a_pool, 128)
+    down0_pool = MaxPooling2D((2, 2), strides=(2, 2))(down0)
+
+    # 64
+    down1 = block(down0_pool, 256)
+    down1_pool = MaxPooling2D((2, 2), strides=(2, 2))(down1)
+
+    # 32
+    down2 = block(down1_pool, 512)
+    down2_pool = MaxPooling2D((2, 2), strides=(2, 2))(down2)
+
+    # 16
+    down3 = block(down2_pool, 1024)
+    down3_pool = MaxPooling2D((2, 2), strides=(2, 2))(down3)
+
+    # 8
+    center = block(down3_pool, 1024)
+
+    # center
+    up3 = UpSampling2D((2, 2))(center)
+    up3 = concatenate([down3, up3], axis=3)
+    up3 = block(up3, 1024)
+
+    # 16
+    up2 = UpSampling2D((2, 2))(up3)
+    up2 = concatenate([down2, up2], axis=3)
+    up2 = block(up2, 512)
+
+    # 32
+    up1 = UpSampling2D((2, 2))(up2)
+    up1 = concatenate([down1, up1], axis=3)
+    up1 = block(up1, 256)
+
+    # 64
+    up0 = UpSampling2D((2, 2))(up1)
+    up0 = concatenate([down0, up0], axis=3)
+    up0 = block(up0, 128)
+
+    # 128
+    up0a = UpSampling2D((2, 2))(up0)
+    up0a = concatenate([down0a, up0a], axis=3)
+    up0a = block(up0a, 64)
+
+    # 256
+    up0b = UpSampling2D((2, 2))(up0a)
+    up0b = concatenate([down0b, up0b], axis=3)
+    up0b = block(up0b, 32)
+
+    # 512
 
     classify = Conv2D(num_classes, (1, 1), activation='sigmoid')(up0b)
 

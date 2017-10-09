@@ -170,8 +170,8 @@ class CarvanaCarSeg():
         #                    metrics=[dice_loss])
 
         # opt = optimizers.SGD(lr=0.01, momentum=0.9)
-        opt = optimizers.RMSprop(lr=1e-4)
-        # opt = optimizers.RMSpropAccum(lr=0.0001, accumulator=5)
+        # opt = optimizers.RMSprop(lr=1e-4)
+        opt = optimizers.RMSpropAccum(lr=0.0001, accumulator=20)
 
         # opt = optimizers.RMSprop(lr=0.0001)
         self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
@@ -277,7 +277,9 @@ class CarvanaCarSeg():
                     y_batch = np.array(y_batch, np.float32)
                     yield x_batch, y_batch
 
-        opt = optimizers.RMSprop(lr=0.0001)
+        # opt = optimizers.RMSprop(lr=0.00001)
+        opt = optimizers.RMSpropAccum(lr=0.0001, accumulator=20)
+
         self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
 
         # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
@@ -388,7 +390,7 @@ class CarvanaCarSeg():
                 q.put(x_batch)
 
         def predictor(q, ):
-            for i in tqdm(range(0, nTest, batch_size)):
+            for _ in tqdm(range(0, nTest, batch_size)):
                 x_batch = q.get()
                 with graph.as_default():
                     preds = self.model.predict_on_batch(x_batch)
@@ -440,9 +442,21 @@ class CarvanaCarSeg():
                 raw_img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(test_imgs[i]))
                 img = cv2.resize(raw_img, (self.input_dim//self.factor, self.input_dim//self.factor), interpolation=cv2.INTER_LINEAR)
                 x_batch.append(img)
+
+                if self.nTTA == 2:
+                    x_batch.append(cv2.flip(img, 1))
+
                 images.append(raw_img)
             x_batch = np.array(x_batch, np.float32) / 255.0
-            p_test = self.model.predict(x_batch, batch_size=self.batch_size)
+            p_test = self.model.predict(x_batch, batch_size=2*self.batch_size)
+
+            p_test = np.squeeze(p_test, axis=3)  # drop channel dimension
+
+            if self.nTTA == 2:
+                nBatch = len(p_test)
+                for j in range(0, nBatch, 2):
+                    p_test[j // 2, ...] = 0.5 * (p_test[j, ...] + cv2.flip(p_test[j + 1, ...], 1))
+                p_test = p_test[:nBatch // 2]
 
             if self.direct_result:
                 result = get_final_mask(p_test, thresh=self.threshold, apply_crf=self.apply_crf, images=images)
@@ -458,8 +472,8 @@ class CarvanaCarSeg():
                 os.mkdir(OUTPUT_PATH)
 
             for i in range(start, end):
-                if saved_img >= 1000:
-                    break
+                # if saved_img >= 1000:
+                #     break
                 if self.apply_crf:
                     cv2.imwrite(CRF_OUTPUT_PATH + '{}'.format(test_imgs[i]), (255 * result[i-start]).astype(np.uint8))
                 else:
@@ -472,9 +486,9 @@ class CarvanaCarSeg():
 
 if __name__ == "__main__":
     ccs = CarvanaCarSeg()
-    if ccs.train_with_all:
-        ccs.train_all()
-    else:
-        ccs.train()
-    # ccs.test_one()
-    ccs.test_multithreaded()
+    # if ccs.train_with_all:
+    #    ccs.train_all()
+    # else:
+    #    ccs.train()
+    ccs.test_one()
+    # ccs.test_multithreaded()

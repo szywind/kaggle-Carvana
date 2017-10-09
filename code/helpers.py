@@ -211,7 +211,7 @@ def dice_loss(y_true, y_pred):
     return 1 - dice_score(y_true, y_pred)
 
 def bce_dice_loss(y_true, y_pred):
-    return binary_crossentropy(y_true, y_pred) + K.log(dice_loss(y_true, y_pred))
+    return binary_crossentropy(y_true, y_pred) + dice_loss(y_true, y_pred)
 
 def get_score(train_masks, avg_masks, thr):
     d = 0.0

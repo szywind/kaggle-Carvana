@@ -41,6 +41,7 @@ class CarvanaCarSeg():
         self.learn_rate = learn_rate
         self.nb_classes = nb_classes
         # self.model = newnet.fcn_32s(input_dim, nb_classes)
+        # self.model = pspnet.pspnet2(input_shape=(self.input_dim, self.input_dim, 3))
         self.model = unet.get_unet_1024(input_shape=(self.input_dim, self.input_dim, 3))
         # self.model.load_weights('../weights/best.h5')
         self.model_path = '../weights/car-segmentation-model.h5'
@@ -50,7 +51,7 @@ class CarvanaCarSeg():
         self.nTTA = 2 # incl. horizon mirror augmentation
         self.load_data()
         self.factor = 1
-        self.train_with_all = True
+        self.train_with_all = False
         self.apply_crf = False
 
     def load_data(self):
@@ -277,9 +278,7 @@ class CarvanaCarSeg():
                     y_batch = np.array(y_batch, np.float32)
                     yield x_batch, y_batch
 
-        # opt = optimizers.RMSprop(lr=0.00001)
-        opt = optimizers.RMSpropAccum(lr=0.0001, accumulator=20)
-
+        opt = optimizers.RMSprop(lr=0.0001)
         self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
 
         # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
@@ -360,7 +359,7 @@ class CarvanaCarSeg():
         self.model.load_weights(self.model_path)
 
         df_test = pd.read_csv(INPUT_PATH + 'sample_submission.csv')
-        test_imgs = df_test['img']
+        test_imgs = list(df_test['img'])
 
         nTest = len(test_imgs)
         print('Testing on {} samples'.format(nTest))
@@ -486,9 +485,9 @@ class CarvanaCarSeg():
 
 if __name__ == "__main__":
     ccs = CarvanaCarSeg()
-    # if ccs.train_with_all:
-    #    ccs.train_all()
-    # else:
-    #    ccs.train()
-    ccs.test_one()
-    # ccs.test_multithreaded()
+    if ccs.train_with_all:
+        ccs.train_all()
+    else:
+        ccs.train()
+    # ccs.test_one()
+    ccs.test_multithreaded()

@@ -446,6 +446,47 @@ def block(in_layer, nchan, relu=True):
         out_layer = LeakyReLU(0.0001)(out_layer)
     return out_layer
 
+def block1(in_layer, nchan, relu=True):
+    m = nchan // 2
+    b1 = Conv2D(m, (3, 3), padding='same')(in_layer)
+    # b1 = BatchNormalization()(b1)
+    if relu:
+        b1 = Activation('relu')(b1)
+    else:
+        b1 = LeakyReLU(0.0001)(b1)
+
+    b2 = Conv2D(m, (3, 3), padding='same')(b1)
+    # b2 = BatchNormalization()(b2)
+    if relu:
+        b2 = Activation('relu')(b2)
+    else:
+        b2 = LeakyReLU(0.0001)(b2)
+
+    b3 = Conv2D(m, (3, 3), padding='same')(b2)
+    # b3 = BatchNormalization()(b3)
+    if relu:
+        b3 = Activation('relu')(b3)
+    else:
+        b3 = LeakyReLU(0.0001)(b3)
+
+
+    b5 = Conv2D(m, (3, 3), padding='same')(in_layer)
+    b5 = Activation('relu')(b5)
+
+
+    b6 = Conv2D(m, (1, 1), padding='same')(in_layer)
+    b6 = Activation('relu')(b6)
+
+    b7 = Conv2D(m, (3, 3), padding='same')(in_layer)
+    b7 = Activation('relu')(b7)
+    b7 = Conv2D(m, (3, 3), padding='same')(b7)
+    b7 = Activation('relu')(b7)
+
+    # out_layer = add([b1, b5])
+    out_layer = concatenate([b3, b5, b6, b7], axis=3)
+    out_layer = Conv2D(nchan, (1, 1), padding='same')(out_layer)
+    return out_layer
+
 def block2(in_layer, nchan, relu=True):
     b0 = Conv2D(nchan, (3, 3), padding='same')(in_layer)
     # b1 = BatchNormalization()(b1)

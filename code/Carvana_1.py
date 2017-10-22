@@ -34,15 +34,16 @@ CRF_OUTPUT_PATH = '../crf_output/'
 
 
 class CarvanaCarSeg():
-    def __init__(self, input_dim=1024, batch_size=1, epochs=100, learn_rate=1e-2, nb_classes=2):
-        self.input_dim = input_dim
+    def __init__(self, width = 1920, height = 1280, batch_size=1, epochs=100, learn_rate=1e-2, nb_classes=2):
+        self.input_width = width
+        self.input_height = height
         self.batch_size = batch_size
         self.epochs = epochs
         self.learn_rate = learn_rate
         self.nb_classes = nb_classes
         # self.model = newnet.fcn_32s(input_dim, nb_classes)
         # self.model = pspnet.pspnet2(input_shape=(self.input_dim, self.input_dim, 3))
-        self.model = unet.get_unet_1024(input_shape=(self.input_dim, self.input_dim, 3))
+        self.model = unet.get_unet_1024(input_shape=(self.input_height, self.input_width, 3))
         # self.model.load_weights('../weights/best.h5')
         self.model_path = '../weights/car-segmentation-model.h5'
         self.threshold = 0.5
@@ -98,10 +99,10 @@ class CarvanaCarSeg():
                     for id in ids_train_batch.values:
                         # j = np.random.randint(self.nAug)
                         img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
-                        img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         # img = transformations2(img, j)
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks_fixed/{}_mask.gif'.format(id)), dtype=np.uint8)
-                        mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
                         img = randomHueSaturationValue(img,
                                                        hue_shift_limit=(-50, 50),
@@ -140,9 +141,9 @@ class CarvanaCarSeg():
                     ids_valid_batch = self.ids_valid_split[start:end]
                     for id in ids_valid_batch.values:
                         img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
-                        img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks_fixed/{}_mask.gif'.format(id)), dtype=np.uint8)
-                        mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         if self.factor != 1:
                             img = cv2.resize(img, (self.input_dim//self.factor, self.input_dim//self.factor), interpolation=cv2.INTER_LINEAR)
                         if self.direct_result:
@@ -245,10 +246,10 @@ class CarvanaCarSeg():
                     for id in ids_train_batch.values:
                         # j = np.random.randint(self.nAug)
                         img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
-                        img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         # img = transformations2(img, j)
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks_fixed/{}_mask.gif'.format(id)), dtype=np.uint8)
-                        mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
                         img = randomHueSaturationValue(img,
                                                        hue_shift_limit=(-50, 50),
@@ -334,7 +335,7 @@ class CarvanaCarSeg():
             ids_test_batch = test_imgs[start:end]
             for id in ids_test_batch.values:
                 img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(id))
-                img = cv2.resize(img, (self.input_dim, self.input_dim))
+                img = cv2.resize(img, (self.input_width, self.input_height))
                 x_batch.append(img)
             x_batch = np.array(x_batch, np.float32) / 255
             preds = self.model.predict_on_batch(x_batch)
@@ -379,7 +380,7 @@ class CarvanaCarSeg():
                 ids_test_batch = test_imgs[start:end]
                 for id in ids_test_batch.values:
                     img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(id))
-                    img = cv2.resize(img, (self.input_dim, self.input_dim))
+                    img = cv2.resize(img, (self.input_width, self.input_height))
                     x_batch.append(img)
 
                     if self.nTTA == 2:
@@ -439,7 +440,7 @@ class CarvanaCarSeg():
             end = min(start + self.batch_size, nTest)
             for i in range(start, end):
                 raw_img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(test_imgs[i]))
-                img = cv2.resize(raw_img, (self.input_dim//self.factor, self.input_dim//self.factor), interpolation=cv2.INTER_LINEAR)
+                img = cv2.resize(raw_img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                 x_batch.append(img)
 
                 if self.nTTA == 2:

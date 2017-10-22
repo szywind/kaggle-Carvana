@@ -34,18 +34,18 @@ CRF_OUTPUT_PATH = '../crf_output/'
 
 
 class CarvanaCarSeg():
-    def __init__(self, input_dim=1024, batch_size=1, epochs=100, learn_rate=1e-2, nb_classes=2):
-        self.input_dim = input_dim
+    def __init__(self, width = 1920, height = 1280, batch_size=1, epochs=100, learn_rate=1e-2, nb_classes=2):
+        self.input_width = width
+        self.input_height = height
         self.batch_size = batch_size
         self.epochs = epochs
         self.learn_rate = learn_rate
         self.nb_classes = nb_classes
         # self.model = newnet.fcn_32s(input_dim, nb_classes)
         # self.model = pspnet.pspnet2(input_shape=(self.input_dim, self.input_dim, 3))
-        self.model = unet.get_unet_1024(input_shape=(self.input_dim, self.input_dim, 3))
-        # self.model.load_weights('../weights/mf-deeper-tta.h5')
-        self.model_path = '../weights/car-segmentation-model-mf.h5'
-        self.model.load_weights(self.model_path)
+        self.model = unet.get_unet_1024(input_shape=(self.input_height, self.input_width, 3))
+        # self.model.load_weights('../weights/best.h5')
+        self.model_path = '../weights/car-segmentation-model.h5'
         self.threshold = 0.5
         self.direct_result = True
         # self.nAug = 2 # incl. horizon mirror augmentation
@@ -99,10 +99,10 @@ class CarvanaCarSeg():
                     for id in ids_train_batch.values:
                         # j = np.random.randint(self.nAug)
                         img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
-                        img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         # img = transformations2(img, j)
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks_fixed/{}_mask.gif'.format(id)), dtype=np.uint8)
-                        mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
                         img = randomHueSaturationValue(img,
                                                        hue_shift_limit=(-50, 50),
@@ -141,9 +141,9 @@ class CarvanaCarSeg():
                     ids_valid_batch = self.ids_valid_split[start:end]
                     for id in ids_valid_batch.values:
                         img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
-                        img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks_fixed/{}_mask.gif'.format(id)), dtype=np.uint8)
-                        mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         if self.factor != 1:
                             img = cv2.resize(img, (self.input_dim//self.factor, self.input_dim//self.factor), interpolation=cv2.INTER_LINEAR)
                         if self.direct_result:
@@ -172,13 +172,13 @@ class CarvanaCarSeg():
         #                    metrics=[dice_loss])
 
         # opt = optimizers.SGD(lr=0.01, momentum=0.9)
-        opt = optimizers.RMSprop(lr=1e-5)
-        # opt = optimizers.RMSpropAccum(lr=0.0001, accumulator=20)
+        # opt = optimizers.RMSprop(lr=1e-4)
+        opt = optimizers.RMSpropAccum(lr=0.0001, accumulator=20)
 
         # opt = optimizers.RMSprop(lr=0.0001)
         self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
         callbacks = [EarlyStopping(monitor='val_loss',
-                                   patience=15,
+                                   patience=6,
                                    verbose=1,
                                    min_delta=1e-4),
                      ReduceLROnPlateau(monitor='val_loss',
@@ -191,11 +191,21 @@ class CarvanaCarSeg():
                                      save_weights_only=True),
                      TensorBoard(log_dir='logs')]
 
+
         self.model.fit_generator(
             generator=train_generator(),
             steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
             epochs=1,
             verbose=1,
+            callbacks=callbacks,
+            validation_data=valid_generator(),
+            validation_steps=math.ceil(nValid / float(self.batch_size)))
+
+        self.model.fit_generator(
+            generator=train_generator(),
+            steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+            epochs=self.epochs,
+            verbose=2,
             callbacks=callbacks,
             validation_data=valid_generator(),
             validation_steps=math.ceil(nValid / float(self.batch_size)))
@@ -206,14 +216,14 @@ class CarvanaCarSeg():
         #                    metrics=[dice_loss])
         #
         #
-        self.model.fit_generator(
-            generator=train_generator(),
-            steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
-            epochs=self.epochs,
-            verbose=2,
-            callbacks=callbacks,
-            validation_data=valid_generator(),
-            validation_steps=math.ceil(nValid / float(self.batch_size)))
+        # self.model.fit_generator(
+        #     generator=train_generator(),
+        #     steps_per_epoch=math.ceil(nTrain / float(self.batch_size)),
+        #     epochs=self.epochs - 10,
+        #     verbose=2,
+        #     callbacks=callbacks,
+        #     validation_data=valid_generator(),
+        #     validation_steps=math.ceil(nValid / float(self.batch_size)))
 
     def train_all(self):
         '''
@@ -236,19 +246,15 @@ class CarvanaCarSeg():
                     for id in ids_train_batch.values:
                         # j = np.random.randint(self.nAug)
                         img = cv2.imread(INPUT_PATH + 'train_hq/{}.jpg'.format(id))
-                        img = cv2.resize(img, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        img = cv2.resize(img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         # img = transformations2(img, j)
                         mask = np.array(Image.open(INPUT_PATH + 'train_masks_fixed/{}_mask.gif'.format(id)), dtype=np.uint8)
-                        mask = cv2.resize(mask, (self.input_dim, self.input_dim), interpolation=cv2.INTER_LINEAR)
+                        mask = cv2.resize(mask, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                         # mask = transformations2(mask, j)
                         img = randomHueSaturationValue(img,
                                                        hue_shift_limit=(-50, 50),
                                                        sat_shift_limit=(-5, 5),
                                                        val_shift_limit=(-15, 15))
-                        img = randomHueSaturationValue(img,
-                                                       hue_shift_limit=(-60, 60),
-                                                       sat_shift_limit=(-10, 10),
-                                                       val_shift_limit=(-20, 20))
                         img, mask = randomShiftScaleRotate(img, mask,
                                                            shift_limit=(-0.0625, 0.0625),
                                                            scale_limit=(-0.1, 0.1),
@@ -273,12 +279,12 @@ class CarvanaCarSeg():
                     y_batch = np.array(y_batch, np.float32)
                     yield x_batch, y_batch
 
-        opt = optimizers.RMSprop(lr=0.00001)
+        opt = optimizers.RMSprop(lr=0.0001)
         self.model.compile(optimizer=opt, loss=bce_dice_loss, metrics=[dice_score, weightedLoss, bce_dice_loss])
 
         # callbacks = [ModelCheckpoint(model_path, save_best_only=False, verbose=0)]
         callbacks = [EarlyStopping(monitor='loss',
-                                   patience=3,
+                                   patience=6,
                                    verbose=1,
                                    min_delta=1e-4),
                      ReduceLROnPlateau(monitor='loss',
@@ -329,7 +335,7 @@ class CarvanaCarSeg():
             ids_test_batch = test_imgs[start:end]
             for id in ids_test_batch.values:
                 img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(id))
-                img = cv2.resize(img, (self.input_dim, self.input_dim))
+                img = cv2.resize(img, (self.input_width, self.input_height))
                 x_batch.append(img)
             x_batch = np.array(x_batch, np.float32) / 255
             preds = self.model.predict_on_batch(x_batch)
@@ -364,8 +370,8 @@ class CarvanaCarSeg():
             names.append(id)
 
         str = []
-        batch_size = 4 // self.nTTA
-        q_size = 2
+        batch_size = 10 // self.nTTA
+        q_size = 3
 
         def data_loader(q, ):
             for start in range(0, nTest, batch_size):
@@ -374,7 +380,7 @@ class CarvanaCarSeg():
                 ids_test_batch = test_imgs[start:end]
                 for id in ids_test_batch.values:
                     img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(id))
-                    img = cv2.resize(img, (self.input_dim, self.input_dim))
+                    img = cv2.resize(img, (self.input_width, self.input_height))
                     x_batch.append(img)
 
                     if self.nTTA == 2:
@@ -384,7 +390,7 @@ class CarvanaCarSeg():
                 q.put(x_batch)
 
         def predictor(q, ):
-            for i in tqdm(range(0, nTest, batch_size)):
+            for _ in tqdm(range(0, nTest, batch_size)):
                 x_batch = q.get()
                 with graph.as_default():
                     preds = self.model.predict_on_batch(x_batch)
@@ -434,11 +440,23 @@ class CarvanaCarSeg():
             end = min(start + self.batch_size, nTest)
             for i in range(start, end):
                 raw_img = cv2.imread(INPUT_PATH + 'test_hq/{}'.format(test_imgs[i]))
-                img = cv2.resize(raw_img, (self.input_dim//self.factor, self.input_dim//self.factor), interpolation=cv2.INTER_LINEAR)
+                img = cv2.resize(raw_img, (self.input_width, self.input_height), interpolation=cv2.INTER_LINEAR)
                 x_batch.append(img)
+
+                if self.nTTA == 2:
+                    x_batch.append(cv2.flip(img, 1))
+
                 images.append(raw_img)
             x_batch = np.array(x_batch, np.float32) / 255.0
-            p_test = self.model.predict(x_batch, batch_size=self.batch_size)
+            p_test = self.model.predict(x_batch, batch_size=2*self.batch_size)
+
+            p_test = np.squeeze(p_test, axis=3)  # drop channel dimension
+
+            if self.nTTA == 2:
+                nBatch = len(p_test)
+                for j in range(0, nBatch, 2):
+                    p_test[j // 2, ...] = 0.5 * (p_test[j, ...] + cv2.flip(p_test[j + 1, ...], 1))
+                p_test = p_test[:nBatch // 2]
 
             if self.direct_result:
                 result = get_final_mask(p_test, thresh=self.threshold, apply_crf=self.apply_crf, images=images)
@@ -454,8 +472,8 @@ class CarvanaCarSeg():
                 os.mkdir(OUTPUT_PATH)
 
             for i in range(start, end):
-                if saved_img >= 1000:
-                    break
+                # if saved_img >= 1000:
+                #     break
                 if self.apply_crf:
                     cv2.imwrite(CRF_OUTPUT_PATH + '{}'.format(test_imgs[i]), (255 * result[i-start]).astype(np.uint8))
                 else:
@@ -472,4 +490,5 @@ if __name__ == "__main__":
         ccs.train_all()
     else:
         ccs.train()
+    # ccs.test_one()
     ccs.test_multithreaded()
